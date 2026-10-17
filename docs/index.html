@@ -119,7 +119,7 @@ td.zero{color:var(--bad);font-weight:600}
   </div>
   <div id="view"></div>
   <div class="note" id="noteSup">Источник: WB API «Поставки» (FBO). Показаны поставки в статусах «Запланировано», «Отгрузка разрешена», «Идёт приёмка»; черновики и принятые не показываются. Нажмите на строку, чтобы увидеть состав.</div>
-  <div class="note" id="noteStk" hidden>Источник: WB API «Маркетплейс», остатки FBS на складах фулфилментов. Столбцы с пометкой «ВМС» считаются по выгрузке из учётной системы ФФ («Остаток свободный») минус заказы FBS обоих кабинетов, сделанные после выгрузки; отменённые до сборки не вычитаются. Остальные ФФ — по остаткам FBS в кабинете WB: у «Досок» это сумма по всем их складам, уже за вычетом заказов FBS; у «Самара один квадрат» на всех складах один общий запас, берётся одно значение; по Графу, ONYX и 3PL пока сумма по складам. Наведите на число, чтобы увидеть склады. По Аванти показан только товар TESFE.</div>
+  <div class="note" id="noteStk" hidden></div>
 </div>
 
 <script>
@@ -375,7 +375,7 @@ function renderCmp(){
 function render(){
   renderCab();renderStats();
   const stk=S.tab==='stk'||S.tab==='sum'||S.tab==='cmp';
-  $('stats').hidden=stk;$('wh').hidden=stk;$('noteSup').hidden=stk;$('noteStk').hidden=!stk;
+  $('stats').hidden=stk;$('wh').hidden=stk;$('noteSup').hidden=stk;$('noteStk').hidden=true;
   $('q').placeholder=stk?'Артикул, название, артикул WB':'Номер поставки, ФФ, артикул, баркод';
   $('upd').textContent=(stk?K&&K.updated:D.updated)||'—';
   ['sup','wh','art','stk','sum','cmp'].forEach(t=>$('t-'+t).setAttribute('aria-selected',S.tab===t));
