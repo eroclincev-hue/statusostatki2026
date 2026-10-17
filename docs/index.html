@@ -271,7 +271,7 @@ function renderStock(){
   const FF=FF_ORDER.filter(ff=>REAL[ff]||rows.some(r=>r.v[ff]));
   const bind=bindChips;
   const realNote=Object.entries(REAL).map(([ff,m])=>m.label==='приход'?`<b>${esc(ff)}</b>: короба 60×40×40 по приходу минус заказы FBS, остальное по FBS в кабинете`:m.exclusive?`<b>${esc(ff)}</b>: канистры по 1С минус поставки FBO и заказы FBS с ${fD(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())}, остаток всего семейства в штучных на исходном артикуле`:`<b>${esc(ff)}</b>: выгрузка ВМС от ${fDT(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())} МСК минус заказы FBS после неё`).join(' · ');
-  const head=bsel+(realNote?`<div class="note" style="margin-bottom:8px">${realNote}. Остальные ФФ пока по остаткам FBS в кабинете WB.</div>`:'');
+  const head=bsel;
   if(!rows.length){$('view').innerHTML=head+'<div class="tbl"><div class="empty">Нет остатков по этим фильтрам.</div></div>';bind();return}
   let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th><th>Кабинет</th><th class="r">Всего</th>'+FF.map(ff=>`<th class="r wh">${esc(ff)}${REAL[ff]&&!REAL[ff].fbs_ok?`<div class="src">${REAL[ff].exclusive?'1С':'ВМС'}</div>`:''}</th>`).join('')+'</tr></thead><tbody>';
   for(const r of rows){h+=`<tr><td title="${esc(r.g.title)}">${esc(r.g.article)}</td><td class="cab">${esc(r.g.brand)}</td><td class="cab">${esc([...r.g.cabNames].join(' + '))}</td><td class="r num"><b>${fmtN(r.t)}</b></td>`+
