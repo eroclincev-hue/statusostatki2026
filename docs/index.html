@@ -118,7 +118,7 @@ td.zero{color:var(--bad);font-weight:600}
     <button role="tab" id="t-cmp" aria-selected="false">Комплектующие</button>
   </div>
   <div id="view"></div>
-  <div class="note" id="noteSup">Источник: WB API «Поставки» (FBO). Показаны поставки в статусах «Запланировано», «Отгрузка разрешена», «Идёт приёмка»; черновики и принятые не показываются. Нажмите на строку, чтобы увидеть состав.</div>
+  <div class="note" id="noteSup" hidden></div>
   <div class="note" id="noteStk" hidden></div>
 </div>
 
@@ -222,7 +222,7 @@ function renderArt(){
   const bind=()=>{$('view').querySelectorAll('#brandBar .chip').forEach(c=>c.onclick=()=>{const b=c.dataset.b;if(!b)S.brands.clear();else S.brands.has(b)?S.brands.delete(b):S.brands.add(b);render()})};
   if(!rows.length){$('view').innerHTML=bsel+'<div class="tbl"><div class="empty">Нет товара в пути по этим фильтрам.</div></div>';bind();return}
   const W=[...whs].sort((a,b)=>a.localeCompare(b,'ru'));
-  let h=bsel+'<div class="note" style="margin-bottom:8px">Сколько штук каждого артикула ещё едет на склады WB: заявлено в поставках минус уже принятое.</div><div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th>'+(S.cab?'':'<th>Кабинет</th>')+'<th class="r">Всего</th>'+W.map(w=>`<th class="r wh" title="${esc(w)}">${esc(w.replace(/^СЦА? /,''))}</th>`).join('')+'</tr></thead><tbody>';
+  let h=bsel+'<div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th>'+(S.cab?'':'<th>Кабинет</th>')+'<th class="r">Всего</th>'+W.map(w=>`<th class="r wh" title="${esc(w)}">${esc(w.replace(/^СЦА? /,''))}</th>`).join('')+'</tr></thead><tbody>';
   for(const r of rows)h+=`<tr><td>${esc(r.a)}</td><td class="cab">${esc(r.b)}</td>${S.cab?'':`<td class="cab">${esc(r.cab)}</td>`}<td class="r num"><b>${fmtN(r.t)}</b></td>${W.map(w=>`<td class="r num">${r.w[w]?fmtN(r.w[w]):'<span class="muted">·</span>'}</td>`).join('')}</tr>`;
   const T=rows.reduce((a,r)=>a+r.t,0);
   h+=`<tr class="tot"><td colspan="${S.cab?2:3}">Итого</td><td class="r num">${fmtN(T)}</td>${W.map(w=>`<td class="r num">${fmtN(rows.reduce((a,r)=>a+(r.w[w]||0),0))}</td>`).join('')}</tr>`;
@@ -341,8 +341,7 @@ function renderSum(){
   rows.forEach(x=>x.turn=x.perDay>0?x.stock/x.perDay:null);
   const sk=S.sumSort||'turn';
   rows.sort((a,b)=>sk==='turn'?((a.turn??1e9)-(b.turn??1e9))||a.article.localeCompare(b.article,'ru',{numeric:true}):a.article.localeCompare(b.article,'ru',{numeric:true}));
-  const head=bsel+`<div class="bar" style="margin-bottom:8px"><span class="muted">Сортировка:</span><div class="seg" id="sumSort"><button data-s="turn" aria-pressed="${sk==='turn'}">Быстрее закончится</button><button data-s="art" aria-pressed="${sk==='art'}">По артикулу</button></div><button class="btn" id="dlRep" hidden>Скачать отчёт по остаткам (Excel)</button><button class="btn btn2" id="dlShort" hidden>Краткий отчёт (Excel)</button><span class="muted" id="dlMsg"></span></div>`+
-    `<div class="note" style="margin-bottom:8px">Остаток — сумма по всем ФФ, как «Всего» на вкладке «Остатки на ФФ». План — товар в поставках FBO «Запланировано» и «Отгрузка разрешена». Продажи — заказы FBS за ${days} дней обоих кабинетов, без отменённых до сборки. Оборачиваемость — на сколько дней хватит остатка при этих продажах. Канистры собраны по семействам в штучных на исходном артикуле, дубли — вместе с исходным артикулом.</div>`;
+  const head=bsel+`<div class="bar" style="margin-bottom:8px"><span class="muted">Сортировка:</span><div class="seg" id="sumSort"><button data-s="turn" aria-pressed="${sk==='turn'}">Быстрее закончится</button><button data-s="art" aria-pressed="${sk==='art'}">По артикулу</button></div><button class="btn" id="dlRep" hidden>Скачать отчёт по остаткам (Excel)</button><button class="btn btn2" id="dlShort" hidden>Краткий отчёт (Excel)</button><span class="muted" id="dlMsg"></span></div>`;
   LAST_SUM=rows;
   const bind=()=>{bindChips();$('view').querySelectorAll('#sumSort button').forEach(b=>b.onclick=()=>{S.sumSort=b.dataset.s;render()});setupDownload()};
   if(!rows.length){$('view').innerHTML=head+'<div class="tbl"><div class="empty">Нет данных по этим фильтрам.</div></div>';bind();return}
@@ -369,13 +368,13 @@ function renderCmp(){
     const when=fDT(new Date(new Date(m.time).getTime()+3*3600e3).toISOString());
     return `<h2 class="sec">${esc(ff)} <span class="muted">· выгрузка ВМС от ${when} МСК</span></h2><div class="tbl"><table class="art"><thead><tr><th>Комплектующее</th><th>Артикул</th><th class="r">Остаток</th><th class="r">Резерв</th><th class="r">Доступно</th></tr></thead><tbody>`+
       l.map(c=>`<tr><td style="white-space:normal;min-width:260px">${esc(c.name)}</td><td class="cab">${c.article?esc(c.article):'<span class="muted">—</span>'}</td><td class="r num">${fmtN(c.total)}</td><td class="r num">${c.reserve?fmtN(c.reserve):'<span class="muted">—</span>'}</td><td class="r num${c.free<0?' diff-neg':c.free===0?' muted':''}">${fmtN(c.free)}</td></tr>`).join('')+'</tbody></table></div>'}).join('');
-  $('view').innerHTML=(blocks||'<div class="tbl"><div class="empty">Комплектующих нет.</div></div>')+'<div class="note" style="margin-top:8px">Упаковка и штучные короба из выгрузок ВМС фулфилментов. Заказы из них не вычитаются: цифры — на момент выгрузки. Отрицательный остаток — так в выгрузке ФФ.</div>';
+  $('view').innerHTML=(blocks||'<div class="tbl"><div class="empty">Комплектующих нет.</div></div>');
 }
 
 function render(){
   renderCab();renderStats();
   const stk=S.tab==='stk'||S.tab==='sum'||S.tab==='cmp';
-  $('stats').hidden=stk;$('wh').hidden=stk;$('noteSup').hidden=stk;$('noteStk').hidden=true;
+  $('stats').hidden=stk;$('wh').hidden=stk;$('noteSup').hidden=true;$('noteStk').hidden=true;
   $('q').placeholder=stk?'Артикул, название, артикул WB':'Номер поставки, ФФ, артикул, баркод';
   $('upd').textContent=(stk?K&&K.updated:D.updated)||'—';
   ['sup','wh','art','stk','sum','cmp'].forEach(t=>$('t-'+t).setAttribute('aria-selected',S.tab===t));
