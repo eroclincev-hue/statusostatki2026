@@ -177,7 +177,7 @@ function goodsTable(s){
    `</tbody></table>`+(s.acceptanceCost>0?`<div class="note" style="margin-top:6px">Стоимость приёмки: <span class="num">${fmtN(s.acceptanceCost)}</span> ₽</div>`:'');
 }
 
-const COLS=[['id','№ поставки'],['cab','Кабинет'],['warehouse','Склад WB'],['ff','ФФ'],['box','Тип'],['status','Статус'],['planned','Плановая дата'],['qty','Кол-во','r'],['accepted','Принято','r'],['created','Создана']];
+const COLS=[['id','№ поставки'],['cab','Кабинет'],['warehouse','Склад WB'],['ff','ФФ'],['box','Тип'],['status','Статус'],['planned','Плановая дата'],['qty','Кол-во','r'],['accepted','Принято','r']];
 function renderSup(){
   const l=filtered();
   const {k,d}=S.sort;
@@ -188,9 +188,9 @@ function renderSup(){
   const tot=l.reduce((a,s)=>a+s.qty,0);
   let h='<div class="tbl"><table><thead><tr>'+COLS.map(([c,n,r])=>`<th class="${r||''}" data-k="${c}">${n}${k===c?`<span class="ar">${d>0?'▲':'▼'}</span>`:''}</th>`).join('')+'</tr></thead><tbody>';
   for(const s of l){const kk=key(s);
-    h+=`<tr class="row" data-key="${kk}" tabindex="0" aria-expanded="${S.open.has(kk)}"><td class="num">${s.id?s.id:'<span class="muted">заказ '+s.preorderID+'</span>'}</td><td class="cab">${esc(s.cabName)}</td><td>${esc(s.warehouse)}${s.transit?`<div class="cab">транзит: ${esc(s.transit)}</div>`:''}</td><td>${s.ff?esc(s.ff):'<span class="muted">—</span>'}</td><td>${esc(s.box)}</td><td><span class="pill s${s.status}">${ST[s.status]}</span></td><td class="num">${fD(s.planned,true)}</td><td class="r num">${fmtN(s.qty)}</td><td class="r">${acceptCell(s)}</td><td class="num muted">${fDT(s.created)}</td></tr>`;
+    h+=`<tr class="row" data-key="${kk}" tabindex="0" aria-expanded="${S.open.has(kk)}"><td class="num">${s.id?s.id:'<span class="muted">заказ '+s.preorderID+'</span>'}</td><td class="cab">${esc(s.cabName)}</td><td>${esc(s.warehouse)}${s.transit?`<div class="cab">транзит: ${esc(s.transit)}</div>`:''}</td><td>${s.ff?esc(s.ff):'<span class="muted">—</span>'}</td><td>${esc(s.box)}</td><td><span class="pill s${s.status}">${ST[s.status]}</span></td><td class="num">${fD(s.planned,true)}</td><td class="r num">${fmtN(s.qty)}</td><td class="r">${acceptCell(s)}</td></tr>`;
     if(S.open.has(kk))h+=`<tr class="goods"><td colspan="${COLS.length}">${goodsTable(s)}</td></tr>`}
-  h+=`<tr class="tot"><td colspan="7">Итого: ${l.length} ${pl(l.length,'поставка','поставки','поставок')}</td><td class="r num">${fmtN(tot)}</td><td colspan="2"></td></tr></tbody></table></div>`;
+  h+=`<tr class="tot"><td colspan="7">Итого: ${l.length} ${pl(l.length,'поставка','поставки','поставок')}</td><td class="r num">${fmtN(tot)}</td><td></td></tr></tbody></table></div>`;
   $('view').innerHTML=h;
   $('view').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const c=th.dataset.k;S.sort=S.sort.k===c?{k:c,d:-S.sort.d}:{k:c,d:1};render()});
   $('view').querySelectorAll('tr.row').forEach(tr=>{const t=()=>{const kk=tr.dataset.key;S.open.has(kk)?S.open.delete(kk):S.open.add(kk);render()};tr.onclick=t;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t()}}});
