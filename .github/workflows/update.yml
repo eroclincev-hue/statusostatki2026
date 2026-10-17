@@ -1,0 +1,57 @@
+name: Обновление данных
+
+on:
+  schedule:
+    # время в UTC: 4:50, 7:50, 10:50, 13:50, 16:50, 19:50 по Москве
+    - cron: '50 1,4,7,10,13,16 * * *'
+  push:
+    paths:
+      - 'uploads/ff1/**'
+      - 'uploads/ff2b/**'
+      - 'uploads/flakony/**'
+      - 'uploads/onyx/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install openpyxl
+      - name: Новые выгрузки ВМС
+        run: python3 app/process_uploads.py
+        env:
+          TOKEN_1: ${{ secrets.TOKEN_AVANTI }}
+          TOKEN_2: ${{ secrets.TOKEN_EROKL }}
+      - name: Поставки FBO
+        run: python3 app/fetch.py app/data.json
+        env:
+          TOKEN_1: ${{ secrets.TOKEN_AVANTI }}
+          TOKEN_2: ${{ secrets.TOKEN_EROKL }}
+      - name: Остатки на ФФ
+        run: python3 app/stocks.py app/stocks.json
+        env:
+          TOKEN_1: ${{ secrets.TOKEN_AVANTI }}
+          TOKEN_2: ${{ secrets.TOKEN_EROKL }}
+      - name: Обновить сайт
+        run: |
+          cp app/data.json app/stocks.json docs/
+          git config user.name "ostatki-bot"
+          git config user.email "ostatki-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Обновление данных $(TZ=Europe/Moscow date '+%d.%m.%Y %H:%M')" || echo "нет изменений"
+          git pull --rebase
+          git push

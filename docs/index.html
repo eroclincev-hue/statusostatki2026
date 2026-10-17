@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html,body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<title>Поставки FBO</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: рабочая панель логиста — шапка со сводкой по статусам, фильтры, плотная таблица с раскрытием состава */
+:root{
+  --bg:#f5f7f8; --surface:#ffffff; --fg:#14232b; --muted:#5d6d75; --line:#dbe2e5;
+  --accent:#0b6e75; --accent-soft:#e0f0f0;
+  --st2:#5b6ea8; --st2-bg:#e8ecf7; --st3:#a76a07; --st3-bg:#fbf0db; --st4:#1d7a46; --st4-bg:#e2f3e9;
+  --bad:#b3372b; --bad-bg:#fbe7e4;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f171b; --surface:#16222a; --fg:#e3ecef; --muted:#93a4ac; --line:#28363e;
+  --accent:#4fc1c4; --accent-soft:#163a3d;
+  --st2:#9eb0ea; --st2-bg:#232c48; --st3:#f0b54f; --st3-bg:#3b2d12; --st4:#5fd08f; --st4-bg:#173826;
+  --bad:#ff8a7b; --bad-bg:#43211c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f171b; --surface:#16222a; --fg:#e3ecef; --muted:#93a4ac; --line:#28363e;
+  --accent:#4fc1c4; --accent-soft:#163a3d;
+  --st2:#9eb0ea; --st2-bg:#232c48; --st3:#f0b54f; --st3-bg:#3b2d12; --st4:#5fd08f; --st4-bg:#173826;
+  --bad:#ff8a7b; --bad-bg:#43211c; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.upd{color:var(--muted);font-size:13px}
+.upd b{font-family:var(--f-mono);font-weight:500;color:var(--fg)}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.stat{appearance:none;text-align:left;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:12px 14px;display:flex;flex-direction:column;gap:2px;cursor:pointer;border-left:4px solid var(--c,var(--accent))}
+.stat[aria-pressed="true"]{background:var(--cb,var(--accent-soft))}
+.stat:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stat .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.stat .big{font-size:22px;font-weight:600}
+.stat .sub{font-size:12px;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg button{appearance:none;border:0;background:none;font:inherit;color:var(--muted);padding:6px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface);font-weight:500}
+select,input[type=search]{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 10px;min-width:0}
+input[type=search]{flex:1 1 200px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{appearance:none;border:0;background:none;font:inherit;font-weight:500;color:var(--muted);padding:8px 12px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
+table.art{width:auto;min-width:0}
+table.art th,table.art td{padding:6px 8px}
+table.art th.wh{white-space:normal;width:64px;min-width:56px;max-width:72px;font-size:11px;line-height:1.2;letter-spacing:.02em;vertical-align:bottom;word-break:break-word;hyphens:auto}
+th{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--surface);position:sticky;top:0;cursor:pointer;user-select:none}
+th.r,td.r{text-align:right}
+th .ar{opacity:.6;margin-left:3px}
+tbody tr.row{cursor:pointer}
+tbody tr.row:hover td{background:var(--accent-soft)}
+tr.goods td{background:var(--bg);white-space:normal;padding:10px 14px 14px}
+tr.goods table{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+tr.goods th{position:static;cursor:default}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:500;color:var(--c);background:var(--cb)}
+.s2{--c:var(--st2);--cb:var(--st2-bg)} .s3{--c:var(--st3);--cb:var(--st3-bg)} .s4{--c:var(--st4);--cb:var(--st4-bg)}
+.flag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:4px;font-size:11px;font-weight:600;color:var(--bad);background:var(--bad-bg)}
+.diff-pos{color:var(--st4)} .warn{color:var(--st3)} .diff-neg{color:var(--bad)}
+.muted{color:var(--muted)}
+.btn2{background:var(--surface);color:var(--accent);border:1px solid var(--accent)!important}
+.btn{appearance:none;font:inherit;font-weight:500;color:var(--surface);background:var(--accent);border:0;border-radius:7px;padding:7px 14px;cursor:pointer}
+h2.sec{font-size:15px;font-weight:600;margin:6px 0 8px}
+.tabs{flex-wrap:wrap}
+table.art th .src{font-size:10px;font-weight:600;color:var(--accent);letter-spacing:.04em}
+td.real{background:var(--accent-soft)}
+td.fbs{font-style:italic;color:var(--muted)}
+td.zero{color:var(--bad);font-weight:600}
+.chip{appearance:none;font:inherit;font-size:13px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:500}
+.cab{font-size:12px;color:var(--muted)}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.tot td{font-weight:600;background:var(--bg)}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:10px 14px}
+.note{color:var(--muted);font-size:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Поставки FBO и остатки на ФФ</h1>
+    <div class="upd" id="updBox">Данные WB на <b id="upd">—</b> МСК</div>
+  </header>
+  <div id="errs" hidden class="err"></div>
+  <div class="stats" id="stats"></div>
+  <div class="bar">
+    <div class="seg" id="cabSeg" role="group" aria-label="Кабинет"></div>
+    <select id="wh" aria-label="Склад WB"><option value="">Все склады</option></select>
+    <input id="q" type="search" placeholder="Номер поставки, ФФ, артикул, баркод" aria-label="Поиск">
+  </div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="t-sup" aria-selected="true">Поставки</button>
+    <button role="tab" id="t-wh" aria-selected="false">По складам</button>
+    <button role="tab" id="t-art" aria-selected="false">По артикулам</button>
+    <button role="tab" id="t-stk" aria-selected="false">Остатки на ФФ</button>
+    <button role="tab" id="t-sum" aria-selected="false">Сводка</button>
+    <button role="tab" id="t-cmp" aria-selected="false">Комплектующие</button>
+  </div>
+  <div id="view"></div>
+  <div class="note" id="noteSup">Источник: WB API «Поставки» (FBO). Показаны поставки в статусах «Запланировано», «Отгрузка разрешена», «Идёт приёмка»; черновики и принятые не показываются. Нажмите на строку, чтобы увидеть состав.</div>
+  <div class="note" id="noteStk" hidden>Источник: WB API «Маркетплейс», остатки FBS на складах фулфилментов. Столбцы с пометкой «ВМС» считаются по выгрузке из учётной системы ФФ («Остаток свободный») минус заказы FBS обоих кабинетов, сделанные после выгрузки; отменённые до сборки не вычитаются. Остальные ФФ — по остаткам FBS в кабинете WB: у «Досок» это сумма по всем их складам, уже за вычетом заказов FBS; у «Самара один квадрат» на всех складах один общий запас, берётся одно значение; по Графу, ONYX и 3PL пока сумма по складам. Наведите на число, чтобы увидеть склады. По Аванти показан только товар TESFE.</div>
+</div>
+
+<script>
+const ST={2:'Запланировано',3:'Отгрузка разрешена',4:'Идёт приёмка'};
+const S={cab:'',st:null,wh:'',q:'',tab:'sup',brands:new Set(),sort:{k:'planned',d:1},open:new Set()};
+let D={supplies:[]};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN=n=>(n??0).toLocaleString('ru-RU');
+const WD=['вс','пн','вт','ср','чт','пт','сб'];
+function d0(s){return s?new Date(s.slice(0,10)+'T00:00:00'):null}
+function fD(s,wd){if(!s)return'—';const d=d0(s);return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+(wd?' '+WD[d.getDay()]:'')}
+function fDT(s){if(!s)return'—';return fD(s)+' '+s.slice(11,16)}
+const today=(()=>{const n=new Date(Date.now()+ (new Date().getTimezoneOffset()+180)*60000);return new Date(n.getFullYear(),n.getMonth(),n.getDate())})();
+function key(s){return s.id?String(s.id):'p'+s.preorderID}
+
+try{const v=localStorage.getItem('fbo-tab');if(v)S.tab=v}catch(e){}
+
+function filtered(useStatus=true){
+  const q=S.q.trim().toLowerCase();
+  return D.supplies.filter(s=>(!S.cab||s.cab===S.cab)&&(!S.wh||s.warehouse===S.wh)&&(!useStatus||S.st==null||s.status===S.st)&&
+    (!q||(s.ff||'').toLowerCase().includes(q)||String(s.id||'').includes(q)||String(s.preorderID||'').includes(q)||s.goods.some(g=>(g.article||'').toLowerCase().includes(q)||(g.barcode||'').includes(q))));
+}
+
+function renderStats(){
+  const base=filtered(false);
+  const all={n:base.length,u:base.reduce((a,s)=>a+s.qty,0)};
+  let h=`<button class="stat" style="--c:var(--accent)" aria-pressed="${S.st==null}" data-st=""><span class="lbl">Все в работе</span><span class="big num">${fmtN(all.n)}</span><span class="sub"><span class="num">${fmtN(all.u)}</span> шт.</span></button>`;
+  for(const k of [2,3,4]){const l=base.filter(s=>s.status==k);const u=l.reduce((a,s)=>a+s.qty,0);
+    h+=`<button class="stat s${k}" aria-pressed="${S.st==k}" data-st="${k}"><span class="lbl">${ST[k]}</span><span class="big num">${fmtN(l.length)}</span><span class="sub"><span class="num">${fmtN(u)}</span> шт.</span></button>`}
+  $('stats').innerHTML=h;
+  $('stats').querySelectorAll('.stat').forEach(b=>b.onclick=()=>{S.st=b.dataset.st===''?null:+b.dataset.st;render()});
+}
+
+function renderCab(){
+  const cabs=[['','Оба кабинета'],['erokl','Ероклинцев'],['avanti','Аванти']];
+  $('cabSeg').innerHTML=cabs.map(([v,l])=>`<button aria-pressed="${S.cab===v}" data-v="${v}">${l}</button>`).join('');
+  $('cabSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.cab=b.dataset.v;render()});
+  const whs=[...new Set(D.supplies.filter(s=>!S.cab||s.cab===S.cab).map(s=>s.warehouse))].sort((a,b)=>a.localeCompare(b,'ru'));
+  if(S.wh&&!whs.includes(S.wh))S.wh='';
+  $('wh').innerHTML='<option value="">Все склады</option>'+whs.map(w=>`<option${w===S.wh?' selected':''}>${esc(w)}</option>`).join('');
+}
+
+function acceptCell(s){
+  if(s.status!==4)return'<span class="muted">—</span>';
+  const d=s.accepted-s.qty;
+  return `<span class="num">${fmtN(s.accepted)}</span>`+(d?` <span class="num ${d>0?'diff-pos':'diff-neg'}">(${d>0?'+':''}${fmtN(d)})</span>`:'');
+}
+
+function goodsTable(s){
+  const acc=s.status===4;
+  const rows=[...s.goods].sort((a,b)=>(a.article||'').localeCompare(b.article||'','ru',{numeric:true}));
+  return `<table><thead><tr><th>Артикул</th><th>Баркод</th><th>Цвет</th><th class="r">Заявлено</th>${acc?'<th class="r">Принято</th><th class="r">Разница</th>':''}</tr></thead><tbody>`+
+   rows.map(g=>{const d=g.accepted-g.qty;return `<tr><td>${esc(g.article)}</td><td class="num">${esc(g.barcode)}</td><td>${esc(g.color||'')}</td><td class="r num">${fmtN(g.qty)}</td>${acc?`<td class="r num">${fmtN(g.accepted)}</td><td class="r num ${d>0?'diff-pos':d<0?'diff-neg':'muted'}">${d?(d>0?'+':'')+fmtN(d):'—'}</td>`:''}</tr>`}).join('')+
+   `</tbody></table>`+(s.acceptanceCost>0?`<div class="note" style="margin-top:6px">Стоимость приёмки: <span class="num">${fmtN(s.acceptanceCost)}</span> ₽</div>`:'');
+}
+
+const COLS=[['id','№ поставки'],['cab','Кабинет'],['warehouse','Склад WB'],['ff','ФФ'],['box','Тип'],['status','Статус'],['planned','Плановая дата'],['qty','Кол-во','r'],['accepted','Принято','r'],['created','Создана']];
+function renderSup(){
+  const l=filtered();
+  const {k,d}=S.sort;
+  l.sort((a,b)=>{let x=a[k],y=b[k];if(k==='id'){x=a.id||0;y=b.id||0}
+    if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;
+    return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'ru'))*d});
+  if(!l.length){$('view').innerHTML='<div class="tbl"><div class="empty">Поставок по этим фильтрам нет.</div></div>';return}
+  const tot=l.reduce((a,s)=>a+s.qty,0);
+  let h='<div class="tbl"><table><thead><tr>'+COLS.map(([c,n,r])=>`<th class="${r||''}" data-k="${c}">${n}${k===c?`<span class="ar">${d>0?'▲':'▼'}</span>`:''}</th>`).join('')+'</tr></thead><tbody>';
+  for(const s of l){const kk=key(s);
+    h+=`<tr class="row" data-key="${kk}" tabindex="0" aria-expanded="${S.open.has(kk)}"><td class="num">${s.id?s.id:'<span class="muted">заказ '+s.preorderID+'</span>'}</td><td class="cab">${esc(s.cabName)}</td><td>${esc(s.warehouse)}${s.transit?`<div class="cab">транзит: ${esc(s.transit)}</div>`:''}</td><td>${s.ff?esc(s.ff):'<span class="muted">—</span>'}</td><td>${esc(s.box)}</td><td><span class="pill s${s.status}">${ST[s.status]}</span></td><td class="num">${fD(s.planned,true)}</td><td class="r num">${fmtN(s.qty)}</td><td class="r">${acceptCell(s)}</td><td class="num muted">${fDT(s.created)}</td></tr>`;
+    if(S.open.has(kk))h+=`<tr class="goods"><td colspan="${COLS.length}">${goodsTable(s)}</td></tr>`}
+  h+=`<tr class="tot"><td colspan="7">Итого: ${l.length} ${pl(l.length,'поставка','поставки','поставок')}</td><td class="r num">${fmtN(tot)}</td><td colspan="2"></td></tr></tbody></table></div>`;
+  $('view').innerHTML=h;
+  $('view').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const c=th.dataset.k;S.sort=S.sort.k===c?{k:c,d:-S.sort.d}:{k:c,d:1};render()});
+  $('view').querySelectorAll('tr.row').forEach(tr=>{const t=()=>{const kk=tr.dataset.key;S.open.has(kk)?S.open.delete(kk):S.open.add(kk);render()};tr.onclick=t;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t()}}});
+}
+function pl(n,a,b,c){const m=n%100,m1=n%10;return m>10&&m<20?c:m1===1?a:m1>=2&&m1<=4?b:c}
+
+function renderWh(){
+  const l=filtered();const m=new Map();
+  for(const s of l){const r=m.get(s.warehouse)||{w:s.warehouse,n:0,2:0,3:0,4:0,next:null};r.n++;r[s.status]+=s.qty;
+    if(s.status!==4&&s.planned&&(!r.next||s.planned<r.next))r.next=s.planned;m.set(s.warehouse,r)}
+  const rows=[...m.values()].sort((a,b)=>(b[2]+b[3]+b[4])-(a[2]+a[3]+a[4]));
+  if(!rows.length){$('view').innerHTML='<div class="tbl"><div class="empty">Поставок по этим фильтрам нет.</div></div>';return}
+  const t={2:0,3:0,4:0,n:0};rows.forEach(r=>{t.n+=r.n;[2,3,4].forEach(k=>t[k]+=r[k])});
+  let h='<div class="tbl"><table><thead><tr><th>Склад WB</th><th class="r">Поставок</th><th class="r">Запланировано, шт.</th><th class="r">Отгрузка разрешена, шт.</th><th class="r">На приёмке, шт.</th><th class="r">Всего, шт.</th><th>Ближайшая отгрузка</th></tr></thead><tbody>';
+  for(const r of rows)h+=`<tr><td>${esc(r.w)}</td><td class="r num">${r.n}</td>${[2,3,4].map(k=>`<td class="r num">${r[k]?fmtN(r[k]):'<span class="muted">—</span>'}</td>`).join('')}<td class="r num"><b>${fmtN(r[2]+r[3]+r[4])}</b></td><td class="num">${r.next?fD(r.next,true):'<span class="muted">—</span>'}</td></tr>`;
+  h+=`<tr class="tot"><td>Итого</td><td class="r num">${t.n}</td>${[2,3,4].map(k=>`<td class="r num">${fmtN(t[k])}</td>`).join('')}<td class="r num">${fmtN(t[2]+t[3]+t[4])}</td><td></td></tr></tbody></table></div>`;
+  $('view').innerHTML=h;
+}
+
+function renderArt(){
+  const l=filtered();const m=new Map();const whs=new Set();
+  const brands=[...new Set(l.flatMap(s=>s.goods.map(g=>g.brand||'Без бренда')))].sort((a,b)=>a==='Без бренда'?1:b==='Без бренда'?-1:a.localeCompare(b,'ru'));
+  for(const b of [...S.brands])if(!brands.includes(b))S.brands.delete(b);
+  const bsel=`<div class="bar" style="margin-bottom:10px" id="brandBar"><span class="muted">Бренды:</span><button class="chip" data-b="" aria-pressed="${!S.brands.size}">Все</button>${brands.map(b=>`<button class="chip" data-b="${esc(b)}" aria-pressed="${S.brands.has(b)}">${esc(b)}</button>`).join('')}</div>`;
+  for(const s of l)for(const g of s.goods){if(S.brands.size&&!S.brands.has(g.brand||'Без бренда'))continue;const k=s.cab+'|'+g.article;const r=m.get(k)||{a:g.article,b:g.brand||'Без бренда',cab:s.cabName,t:0,w:{}};
+    const left=s.status===4?Math.max(g.qty-g.accepted,0):g.qty; if(!left)continue;
+    r.t+=left;r.w[s.warehouse]=(r.w[s.warehouse]||0)+left;whs.add(s.warehouse);m.set(k,r)}
+  const rows=[...m.values()].filter(r=>r.t).sort((a,b)=>(a.a||'').localeCompare(b.a||'','ru',{numeric:true}));
+  const bind=()=>{$('view').querySelectorAll('#brandBar .chip').forEach(c=>c.onclick=()=>{const b=c.dataset.b;if(!b)S.brands.clear();else S.brands.has(b)?S.brands.delete(b):S.brands.add(b);render()})};
+  if(!rows.length){$('view').innerHTML=bsel+'<div class="tbl"><div class="empty">Нет товара в пути по этим фильтрам.</div></div>';bind();return}
+  const W=[...whs].sort((a,b)=>a.localeCompare(b,'ru'));
+  let h=bsel+'<div class="note" style="margin-bottom:8px">Сколько штук каждого артикула ещё едет на склады WB: заявлено в поставках минус уже принятое.</div><div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th>'+(S.cab?'':'<th>Кабинет</th>')+'<th class="r">Всего</th>'+W.map(w=>`<th class="r wh" title="${esc(w)}">${esc(w.replace(/^СЦА? /,''))}</th>`).join('')+'</tr></thead><tbody>';
+  for(const r of rows)h+=`<tr><td>${esc(r.a)}</td><td class="cab">${esc(r.b)}</td>${S.cab?'':`<td class="cab">${esc(r.cab)}</td>`}<td class="r num"><b>${fmtN(r.t)}</b></td>${W.map(w=>`<td class="r num">${r.w[w]?fmtN(r.w[w]):'<span class="muted">·</span>'}</td>`).join('')}</tr>`;
+  const T=rows.reduce((a,r)=>a+r.t,0);
+  h+=`<tr class="tot"><td colspan="${S.cab?2:3}">Итого</td><td class="r num">${fmtN(T)}</td>${W.map(w=>`<td class="r num">${fmtN(rows.reduce((a,r)=>a+(r.w[w]||0),0))}</td>`).join('')}</tr>`;
+  h+='</tbody></table></div>';
+  $('view').innerHTML=h;bind();
+}
+
+let K=null; // остатки
+const FF_ORDER=['Граф','ФФ2Б','ФФ №1','Самара один квадрат','ONYX FF','Доски','Флаконы','3PL','TESFE'];
+const POOLED=new Set(['ФФ №1','Самара один квадрат','Флаконы']);
+function stockGroups(){
+  const W={};K.warehouses.forEach(w=>W[w.id]=w);
+  const REAL=K.real||{};
+  const G=new Map();
+  for(const i of K.items){const k=i.article.toLowerCase();let g=G.get(k);
+    if(!g){g={article:i.article,title:i.title,brand:i.brand,nm:[],bc:[],oz:[],cabs:new Set(),cabNames:new Set(),members:[],real:{},sold:0,fam:i.fam||null};G.set(k,g)}
+    if(g.brand==='Без бренда'&&i.brand!=='Без бренда')g.brand=i.brand;
+    if(i.nm)g.nm.push(i.nm);if(i.bc)g.bc.push(i.bc);if(i.oz)g.oz.push(i.oz);g.sold+=i.sold||0;if(i.fam)g.fam=i.fam;
+    g.cabs.add(i.cab);g.cabNames.add(i.cabName.replace('ИП ',''));g.members.push(i);Object.assign(g.real,i.real||{})}
+  return [...G.values()].map(g=>{const v={},tip={};
+    for(const [ff,r] of Object.entries(g.real)){v[ff]=r.now;tip[ff]=r.fbo!=null?`Остаток по 1С (все артикулы семейства, в штучных): ${r.base}\nВ поставках FBO: −${r.fbo}\nЗаказов FBS с ${fD(new Date(new Date(REAL[ff].time).getTime()+3*3600e3).toISOString())}: −${r.orders}\nСейчас: ${r.now}`:REAL[ff].label==='приход'?`Приход: ${r.base}\nЗаказов FBS с ${fD(new Date(new Date(REAL[ff].time).getTime()+3*3600e3).toISOString())}: ${r.orders}\nСейчас: ${r.now}`:`Выгрузка ВМС, свободный: ${r.base}\nЗаказов FBS после выгрузки: ${r.orders}\nСейчас: ${r.now}`}
+    const f={};for(const i of g.members)for(const [wid,a] of Object.entries(i.st)){const w=W[wid];if(!w||g.real[w.ff]||(REAL[w.ff]&&REAL[w.ff].exclusive))continue;(f[w.ff]=f[w.ff]||[]).push([(g.cabs.size>1?(w.cab==='avanti'?'Аванти · ':'Ероклинцев · '):'')+w.name,a,w.cab])}
+    for(const [ff,l] of Object.entries(f)){let val;
+      if(POOLED.has(ff)){const byCab={};l.forEach(x=>byCab[x[2]]=Math.max(byCab[x[2]]||0,x[1]));val=Object.values(byCab).reduce((a,b)=>a+b,0)}
+      else val=l.reduce((a,x)=>a+x[1],0);
+      v[ff]=val;tip[ff]=(REAL[ff]&&!REAL[ff].fbs_ok?'Нет в выгрузке ВМС, показан остаток FBS из кабинета WB:\n':'Остатки FBS в кабинете WB:\n')+l.map(x=>x[0]+': '+x[1]).join('\n')}
+    const t=Object.values(v).reduce((a,b)=>a+b,0);
+    return {g,v,tip,t}});
+}
+function brandChips(list){
+  const brands=[...new Set(list.map(g=>g.brand))].sort((a,b)=>a==='Без бренда'?1:b==='Без бренда'?-1:a.localeCompare(b,'ru'));
+  for(const b of [...S.brands])if(!brands.includes(b))S.brands.delete(b);
+  return `<div class="bar" style="margin-bottom:10px" id="brandBar"><span class="muted">Бренды:</span><button class="chip" data-b="" aria-pressed="${!S.brands.size}">Все</button>${brands.map(b=>`<button class="chip" data-b="${esc(b)}" aria-pressed="${S.brands.has(b)}">${esc(b)}</button>`).join('')}</div>`;
+}
+function bindChips(){$('view').querySelectorAll('#brandBar .chip').forEach(c=>c.onclick=()=>{const b=c.dataset.b;if(!b)S.brands.clear();else S.brands.has(b)?S.brands.delete(b):S.brands.add(b);render()})}
+
+function renderStock(){
+  if(!K){$('view').innerHTML='<div class="tbl"><div class="empty">Загружаю остатки…</div></div>';return}
+  const W={};K.warehouses.forEach(w=>W[w.id]=w);
+  const REAL=K.real||{};
+  const q=S.q.trim().toLowerCase();
+  let all=stockGroups().filter(r=>(r.t>0||Object.keys(r.g.real).length)&&(!S.cab||r.g.cabs.has(S.cab))&&(!q||r.g.article.toLowerCase().includes(q)||r.g.nm.some(n=>String(n).includes(q))||(r.g.title||'').toLowerCase().includes(q)));
+  const bsel=brandChips(all.map(r=>r.g));
+  if(S.brands.size)all=all.filter(r=>S.brands.has(r.g.brand));
+  const rows=all.sort((a,b)=>a.g.article.localeCompare(b.g.article,'ru',{numeric:true}));
+  const FF=FF_ORDER.filter(ff=>REAL[ff]||rows.some(r=>r.v[ff]));
+  const bind=bindChips;
+  const realNote=Object.entries(REAL).map(([ff,m])=>m.label==='приход'?`<b>${esc(ff)}</b>: короба 60×40×40 по приходу минус заказы FBS, остальное по FBS в кабинете`:m.exclusive?`<b>${esc(ff)}</b>: канистры по 1С минус поставки FBO и заказы FBS с ${fD(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())}, остаток всего семейства в штучных на исходном артикуле`:`<b>${esc(ff)}</b>: выгрузка ВМС от ${fDT(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())} МСК минус заказы FBS после неё`).join(' · ');
+  const head=bsel+(realNote?`<div class="note" style="margin-bottom:8px">${realNote}. Остальные ФФ пока по остаткам FBS в кабинете WB.</div>`:'');
+  if(!rows.length){$('view').innerHTML=head+'<div class="tbl"><div class="empty">Нет остатков по этим фильтрам.</div></div>';bind();return}
+  let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th><th>Кабинет</th><th class="r">Всего</th>'+FF.map(ff=>`<th class="r wh">${esc(ff)}${REAL[ff]&&!REAL[ff].fbs_ok?`<div class="src">${REAL[ff].exclusive?'1С':'ВМС'}</div>`:''}</th>`).join('')+'</tr></thead><tbody>';
+  for(const r of rows){h+=`<tr><td title="${esc(r.g.title)}">${esc(r.g.article)}</td><td class="cab">${esc(r.g.brand)}</td><td class="cab">${esc([...r.g.cabNames].join(' + '))}</td><td class="r num"><b>${fmtN(r.t)}</b></td>`+
+    FF.map(ff=>r.v[ff]!=null&&(r.v[ff]||REAL[ff]&&r.g.real[ff])?`<td class="r num${REAL[ff]?(r.g.real[ff]?' real':(REAL[ff].fbs_ok?'':' fbs')):''}${r.v[ff]===0?' zero':''}" title="${esc(r.tip[ff])}">${fmtN(r.v[ff])}</td>`:'<td class="r num"><span class="muted">·</span></td>').join('')+'</tr>'}
+  const T=rows.reduce((a,r)=>a+r.t,0);
+  h+=`<tr class="tot"><td colspan="3">Итого: ${rows.length} ${pl(rows.length,'артикул','артикула','артикулов')}</td><td class="r num">${fmtN(T)}</td>${FF.map(ff=>`<td class="r num">${fmtN(rows.reduce((a,r)=>a+(r.v[ff]||0),0))}</td>`).join('')}</tr></tbody></table></div>`;
+  $('view').innerHTML=h;bind();
+}
+
+let LAST_SUM=[],DL=null,DLP=null;
+function setupDownload(){
+  const b=$('dlRep');if(!b)return;
+  // на обычном сайте (GitHub Pages) скачиваем средствами браузера
+  if(!DL&&!(window.claude&&window.claude.use))DL={save:async({filename,data})=>{const u=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);return {status:'saved'}}};
+  if(!DLP&&window.claude&&window.claude.use)DLP=window.claude.use('downloads').then(d=>DL=d).catch(()=>null);
+  const show=()=>{if(DL&&window.XLSX&&$('dlRep')){$('dlRep').hidden=false;$('dlShort').hidden=false}};
+  if(DLP)DLP.then(show);show();
+  b.onclick=()=>exportReport(false);$('dlShort').onclick=()=>exportReport(true);
+}
+async function exportReport(short){
+  {
+    const rows=LAST_SUM;if(!rows.length)return;
+    const FF=short?[]:FF_ORDER.filter(ff=>rows.some(x=>x.ffv[ff]));
+    const brands=S.brands.size?[...S.brands].join(', '):'все бренды';
+    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Остаток + поставки','Заказов в день','Оборачиваемость, дн.']
+      :['Бренд','Артикул продавца','Баркод','Артикул WB','Артикул Ozon','Кабинет','Остаток на ФФ',...FF.map(f=>'в т.ч. '+f),'В поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.'];
+    const data=[[`${short?'Краткий отчёт':'Отчёт'} по остаткам: ${brands}`],[`Данные на ${K.updated} МСК. Остаток на ФФ — сумма по всем фулфилментам; в поставках — FBO «Запланировано» и «Отгрузка разрешена». Канистры — по семействам в штучных.`],[],head];
+    const sorted=[...rows].sort((a,b)=>a.brand.localeCompare(b.brand,'ru')||a.article.localeCompare(b.article,'ru',{numeric:true}));
+    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn)]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
+      [...x.cabNames].join(' + ')||(x.cabs.has('avanti')?'Аванти':'Ероклинцев'),x.stock,...FF.map(f=>x.ffv[f]||0),x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn)]);
+    const n=sorted.length,first=5,last=4+n,col=i=>XLSX.utils.encode_col(i);
+    const sumCols=short?[4,5,6,7]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length];
+    data.push(['Итого',...Array(head.length-1).fill('')]);
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    for(const c of sumCols)ws[col(c)+(last+1)]={t:'n',f:`SUM(${col(c)}${first}:${col(c)}${last})`};
+    ws['!cols']=head.map((h,i)=>({wch:i===1?34:short?(i<4?16:14):(i<6?16:12)}));
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Остатки');
+    const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const d=new Date();const fn=`${short?'Остатки кратко':'Остатки'} ${S.brands.size?[...S.brands].join(' ').slice(0,60):'все бренды'} ${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}.xlsx`;
+    try{await DL.save({filename:fn,data:new Blob([buf])});$('dlMsg').textContent=''}
+    catch(e){$('dlMsg').textContent=e&&e.code==='declined'?'':'Не получилось сохранить файл: '+(e&&e.message||'ошибка')}
+  };
+}
+function renderSum(){
+  if(!K){$('view').innerHTML='<div class="tbl"><div class="empty">Загружаю остатки…</div></div>';return}
+  const days=K.salesDays||14;
+  const famOf={};K.items.forEach(i=>{if(i.fam)famOf[i.article.toLowerCase()]=i.fam});
+  const keyOf=a=>{const f=famOf[(a||'').toLowerCase()];return f?[f[0].toLowerCase(),f[1]]:[(a||'').toLowerCase().replace(/[\s_]*дубль\d*$/,''),1]};
+  // план: поставки FBO «Запланировано» и «Отгрузка разрешена»
+  const plan={},planCab={};
+  for(const sp of D.supplies)if(sp.status===2||sp.status===3)for(const g of sp.goods){const [k,n]=keyOf(g.article);plan[k]=(plan[k]||0)+g.qty*n;(planCab[k]=planCab[k]||new Set()).add(sp.cab)}
+  // строки: семейства канистр сворачиваются в исходный артикул
+  const R=new Map();
+  for(const r of stockGroups()){const [k,n]=keyOf(r.g.article);let x=R.get(k);
+    if(!x){x={k,article:r.g.article,brand:r.g.brand,title:r.g.title,nm:[],bc:[],oz:[],cabs:new Set(),cabNames:new Set(),stock:0,sold:0,members:0,ffv:{}};R.set(k,x)}
+    for(const [ff,val] of Object.entries(r.v))x.ffv[ff]=(x.ffv[ff]||0)+val;
+    if(r.g.article.toLowerCase()===k){x.article=r.g.article;x.title=r.g.title;x.nm=[...r.g.nm,...x.nm];x.bc=[...r.g.bc,...x.bc];x.oz=[...r.g.oz,...x.oz]}
+    x.stock+=r.t;x.sold+=r.g.sold*n;x.members++;r.g.cabs.forEach(c=>x.cabs.add(c));r.g.cabNames.forEach(c=>x.cabNames.add(c));
+    if(x.brand==='Без бренда')x.brand=r.g.brand}
+  for(const k of Object.keys(plan))if(!R.has(k)){const it=K.items.find(i=>i.article.toLowerCase()===k);
+    R.set(k,{k,article:it?it.article:k,brand:it?it.brand:'Без бренда',title:it?it.title:'',nm:it&&it.nm?[it.nm]:[],bc:it&&it.bc?[it.bc]:[],oz:it&&it.oz?[it.oz]:[],cabs:planCab[k],cabNames:new Set(),stock:0,sold:0,members:1,ffv:{}})}
+  const q=S.q.trim().toLowerCase();
+  let rows=[...R.values()].map(x=>({...x,plan:plan[x.k]||0,perDay:x.sold/days})).filter(x=>x.stock||x.plan||x.sold)
+    .filter(x=>(!S.cab||x.cabs.has(S.cab))&&(!q||x.article.toLowerCase().includes(q)||x.nm.some(n=>String(n).includes(q))||x.bc.some(b=>b.includes(q))||x.oz.some(o=>o.includes(q))||(x.title||'').toLowerCase().includes(q)));
+  const bsel=brandChips(rows);
+  if(S.brands.size)rows=rows.filter(x=>S.brands.has(x.brand));
+  rows.forEach(x=>x.turn=x.perDay>0?x.stock/x.perDay:null);
+  const sk=S.sumSort||'turn';
+  rows.sort((a,b)=>sk==='turn'?((a.turn??1e9)-(b.turn??1e9))||a.article.localeCompare(b.article,'ru',{numeric:true}):a.article.localeCompare(b.article,'ru',{numeric:true}));
+  const head=bsel+`<div class="bar" style="margin-bottom:8px"><span class="muted">Сортировка:</span><div class="seg" id="sumSort"><button data-s="turn" aria-pressed="${sk==='turn'}">Быстрее закончится</button><button data-s="art" aria-pressed="${sk==='art'}">По артикулу</button></div><button class="btn" id="dlRep" hidden>Скачать отчёт по остаткам (Excel)</button><button class="btn btn2" id="dlShort" hidden>Краткий отчёт (Excel)</button><span class="muted" id="dlMsg"></span></div>`+
+    `<div class="note" style="margin-bottom:8px">Остаток — сумма по всем ФФ, как «Всего» на вкладке «Остатки на ФФ». План — товар в поставках FBO «Запланировано» и «Отгрузка разрешена». Продажи — заказы FBS за ${days} дней обоих кабинетов, без отменённых до сборки. Оборачиваемость — на сколько дней хватит остатка при этих продажах. Канистры собраны по семействам в штучных на исходном артикуле, дубли — вместе с исходным артикулом.</div>`;
+  LAST_SUM=rows;
+  const bind=()=>{bindChips();$('view').querySelectorAll('#sumSort button').forEach(b=>b.onclick=()=>{S.sumSort=b.dataset.s;render()});setupDownload()};
+  if(!rows.length){$('view').innerHTML=head+'<div class="tbl"><div class="empty">Нет данных по этим фильтрам.</div></div>';bind();return}
+  const tcls=t=>t==null?'muted':t<7?'diff-neg':t<14?'warn':'';
+  let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Баркод</th><th>Артикул WB</th><th>Артикул Ozon</th><th>Артикул продавца</th><th>Бренд</th><th class="r">Остаток на ФФ</th><th class="r">План поставок</th><th class="r">Итого с поставками</th><th class="r">Заказов в день</th><th class="r">Оборачиваемость, дн.</th></tr></thead><tbody>';
+  for(const x of rows){const bc=[...new Set(x.bc)],nm=[...new Set(x.nm)];
+    h+=`<tr><td class="num">${bc.length?esc(bc[0])+(bc.length>1?` <span class="muted" title="${esc(bc.join(', '))}">+${bc.length-1}</span>`:''):'<span class="muted">—</span>'}</td>`+
+      `<td class="num">${nm.length?esc(nm[0])+(nm.length>1?` <span class="muted" title="${esc(nm.join(', '))}">+${nm.length-1}</span>`:''):'<span class="muted">—</span>'}</td>`+
+      `<td class="num">${x.oz.length?esc([...new Set(x.oz)].join(', ')):'<span class="muted">—</span>'}</td>`+
+      `<td title="${esc(x.title)}">${esc(x.article)}${x.members>1?`<div class="cab">${famOf[x.k]?'все артикулы семейства':'вместе с дублем'}</div>`:''}${x.cabs.size>1?'<div class="cab">Ероклинцев + Аванти</div>':x.cabs.has('avanti')?'<div class="cab">Аванти</div>':''}</td>`+
+      `<td class="cab">${esc(x.brand)}</td><td class="r num"><b>${fmtN(x.stock)}</b></td><td class="r num">${x.plan?fmtN(x.plan):'<span class="muted">—</span>'}</td><td class="r num"><b>${fmtN(x.stock+x.plan)}</b></td>`+
+      `<td class="r num">${x.perDay?x.perDay.toLocaleString('ru-RU',{maximumFractionDigits:1}):'<span class="muted">—</span>'}</td>`+
+      `<td class="r num ${tcls(x.turn)}">${x.turn==null?'—':x.turn===0?'0':x.turn<1?'&lt;1':fmtN(Math.round(x.turn))}</td></tr>`}
+  h+=`<tr class="tot"><td colspan="5">Итого: ${rows.length} ${pl(rows.length,'артикул','артикула','артикулов')}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.stock,0))}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.plan,0))}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.stock+x.plan,0))}</td><td class="r num">${rows.reduce((a,x)=>a+x.perDay,0).toLocaleString('ru-RU',{maximumFractionDigits:0})}</td><td></td></tr></tbody></table></div>`;
+  $('view').innerHTML=h;bind();
+}
+
+function renderCmp(){
+  if(!K){$('view').innerHTML='<div class="tbl"><div class="empty">Загружаю…</div></div>';return}
+  const q=S.q.trim().toLowerCase();
+  const blocks=Object.entries(K.real||{}).filter(([ff,m])=>(m.components||[]).length).map(([ff,m])=>{
+    const l=m.components.filter(c=>!q||c.name.toLowerCase().includes(q)||(c.article||'').toLowerCase().includes(q));
+    if(!l.length)return '';
+    const when=fDT(new Date(new Date(m.time).getTime()+3*3600e3).toISOString());
+    return `<h2 class="sec">${esc(ff)} <span class="muted">· выгрузка ВМС от ${when} МСК</span></h2><div class="tbl"><table class="art"><thead><tr><th>Комплектующее</th><th>Артикул</th><th class="r">Остаток</th><th class="r">Резерв</th><th class="r">Доступно</th></tr></thead><tbody>`+
+      l.map(c=>`<tr><td style="white-space:normal;min-width:260px">${esc(c.name)}</td><td class="cab">${c.article?esc(c.article):'<span class="muted">—</span>'}</td><td class="r num">${fmtN(c.total)}</td><td class="r num">${c.reserve?fmtN(c.reserve):'<span class="muted">—</span>'}</td><td class="r num${c.free<0?' diff-neg':c.free===0?' muted':''}">${fmtN(c.free)}</td></tr>`).join('')+'</tbody></table></div>'}).join('');
+  $('view').innerHTML=(blocks||'<div class="tbl"><div class="empty">Комплектующих нет.</div></div>')+'<div class="note" style="margin-top:8px">Упаковка и штучные короба из выгрузок ВМС фулфилментов. Заказы из них не вычитаются: цифры — на момент выгрузки. Отрицательный остаток — так в выгрузке ФФ.</div>';
+}
+
+function render(){
+  renderCab();renderStats();
+  const stk=S.tab==='stk'||S.tab==='sum'||S.tab==='cmp';
+  $('stats').hidden=stk;$('wh').hidden=stk;$('noteSup').hidden=stk;$('noteStk').hidden=!stk;
+  $('q').placeholder=stk?'Артикул, название, артикул WB':'Номер поставки, ФФ, артикул, баркод';
+  $('upd').textContent=(stk?K&&K.updated:D.updated)||'—';
+  ['sup','wh','art','stk','sum','cmp'].forEach(t=>$('t-'+t).setAttribute('aria-selected',S.tab===t));
+  ({sup:renderSup,wh:renderWh,art:renderArt,stk:renderStock,sum:renderSum,cmp:renderCmp})[S.tab]();
+}
+['sup','wh','art','stk','sum','cmp'].forEach(t=>$('t-'+t).onclick=()=>{S.tab=t;try{localStorage.setItem('fbo-tab',t)}catch(e){}render()});
+$('wh').onchange=e=>{S.wh=e.target.value;render()};
+$('q').oninput=e=>{S.q=e.target.value;render()};
+
+fetch('data.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{D=d;$('upd').textContent=d.updated;
+  if(d.errors&&d.errors.length){$('errs').hidden=false;$('errs').textContent='Не всё загрузилось: '+d.errors.join('; ')}
+  render()}).catch(()=>{$('view').innerHTML='<div class="tbl"><div class="empty">Не удалось загрузить данные. Обновите страницу.</div></div>'});
+fetch('stocks.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{K=d;if(S.tab==='stk'||S.tab==='sum'||S.tab==='cmp')render()}).catch(()=>{K={warehouses:[],items:[],updated:'—'};if(S.tab==='stk'||S.tab==='sum'||S.tab==='cmp')render()});
+render();
+</script>
+
+</body>
+</html>
