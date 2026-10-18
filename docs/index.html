@@ -114,7 +114,6 @@ td.zero{color:var(--bad);font-weight:600}
   </div>
   <div class="tabs" role="tablist">
     <button role="tab" id="t-sup" aria-selected="true">Поставки</button>
-    <button role="tab" id="t-wh" aria-selected="false">По складам</button>
     <button role="tab" id="t-art" aria-selected="false">По артикулам</button>
     <button role="tab" id="t-stk" aria-selected="false">Остатки на ФФ</button>
     <button role="tab" id="t-sum" aria-selected="false">Сводка</button>
@@ -139,7 +138,7 @@ function fDT(s){if(!s)return'—';return fD(s)+' '+s.slice(11,16)}
 const today=(()=>{const n=new Date(Date.now()+ (new Date().getTimezoneOffset()+180)*60000);return new Date(n.getFullYear(),n.getMonth(),n.getDate())})();
 function key(s){return s.id?String(s.id):'p'+s.preorderID}
 
-try{const v=localStorage.getItem('fbo-tab');if(v)S.tab=v}catch(e){}
+try{const v=localStorage.getItem('fbo-tab');if(v&&v!=='wh')S.tab=v}catch(e){}
 
 function filtered(useStatus=true){
   const q=S.q.trim().toLowerCase();
@@ -230,19 +229,6 @@ function loadFFM(){const t=ghToken(false);
   const p=t?ghGet(t).then(x=>x.map).catch(()=>fetch('ff_map.json',{cache:'no-store'}).then(r=>r.json())):fetch('ff_map.json',{cache:'no-store'}).then(r=>r.json());
   return p.then(m=>{FFM=m||{}}).catch(()=>{})}
 function pl(n,a,b,c){const m=n%100,m1=n%10;return m>10&&m<20?c:m1===1?a:m1>=2&&m1<=4?b:c}
-
-function renderWh(){
-  const l=filtered();const m=new Map();
-  for(const s of l){const r=m.get(s.warehouse)||{w:s.warehouse,n:0,2:0,3:0,4:0,next:null};r.n++;r[s.status]+=s.qty;
-    if(s.status!==4&&s.planned&&(!r.next||s.planned<r.next))r.next=s.planned;m.set(s.warehouse,r)}
-  const rows=[...m.values()].sort((a,b)=>(b[2]+b[3]+b[4])-(a[2]+a[3]+a[4]));
-  if(!rows.length){$('view').innerHTML='<div class="tbl"><div class="empty">Поставок по этим фильтрам нет.</div></div>';return}
-  const t={2:0,3:0,4:0,n:0};rows.forEach(r=>{t.n+=r.n;[2,3,4].forEach(k=>t[k]+=r[k])});
-  let h='<div class="tbl"><table><thead><tr><th>Склад WB</th><th class="r">Поставок</th><th class="r">Запланировано, шт.</th><th class="r">Отгрузка разрешена, шт.</th><th class="r">На приёмке, шт.</th><th class="r">Всего, шт.</th><th>Ближайшая отгрузка</th></tr></thead><tbody>';
-  for(const r of rows)h+=`<tr><td>${esc(r.w)}</td><td class="r num">${r.n}</td>${[2,3,4].map(k=>`<td class="r num">${r[k]?fmtN(r[k]):'<span class="muted">—</span>'}</td>`).join('')}<td class="r num"><b>${fmtN(r[2]+r[3]+r[4])}</b></td><td class="num">${r.next?fD(r.next,true):'<span class="muted">—</span>'}</td></tr>`;
-  h+=`<tr class="tot"><td>Итого</td><td class="r num">${t.n}</td>${[2,3,4].map(k=>`<td class="r num">${fmtN(t[k])}</td>`).join('')}<td class="r num">${fmtN(t[2]+t[3]+t[4])}</td><td></td></tr></tbody></table></div>`;
-  $('view').innerHTML=h;
-}
 
 function renderArt(){
   const l=filtered();const m=new Map();const whs=new Set();
@@ -411,10 +397,10 @@ function render(){
   $('stats').hidden=stk;$('wh').hidden=stk;$('noteSup').hidden=true;$('noteStk').hidden=true;
   $('q').placeholder=stk?'Артикул, название, артикул WB':'Номер поставки, ФФ, артикул, баркод';
   $('upd').textContent=(stk?K&&K.updated:D.updated)||'—';
-  ['sup','wh','art','stk','sum','cmp'].forEach(t=>$('t-'+t).setAttribute('aria-selected',S.tab===t));
-  ({sup:renderSup,wh:renderWh,art:renderArt,stk:renderStock,sum:renderSum,cmp:renderCmp})[S.tab]();
+  ['sup','art','stk','sum','cmp'].forEach(t=>$('t-'+t).setAttribute('aria-selected',S.tab===t));
+  ({sup:renderSup,art:renderArt,stk:renderStock,sum:renderSum,cmp:renderCmp})[S.tab]();
 }
-['sup','wh','art','stk','sum','cmp'].forEach(t=>$('t-'+t).onclick=()=>{S.tab=t;try{localStorage.setItem('fbo-tab',t)}catch(e){}render()});
+['sup','art','stk','sum','cmp'].forEach(t=>$('t-'+t).onclick=()=>{S.tab=t;try{localStorage.setItem('fbo-tab',t)}catch(e){}render()});
 $('wh').onchange=e=>{S.wh=e.target.value;render()};
 $('q').oninput=e=>{S.q=e.target.value;render()};
 
