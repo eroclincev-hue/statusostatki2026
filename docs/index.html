@@ -70,6 +70,9 @@ th{font-size:11px;line-height:1.25;font-weight:600;color:var(--muted);text-trans
 th.r,td.r{text-align:right}
 th .ar{opacity:.6;margin-left:3px}
 tbody tr.row{cursor:pointer}
+select.ffsel{padding:2px 6px;font-size:13px;max-width:190px}
+select.ffsel.empty{color:var(--muted)}
+select.ffsel.saving{opacity:.55}
 tbody tr.row:hover td{background:var(--accent-soft)}
 tr.goods td{background:var(--bg);white-space:normal;padding:10px 14px 14px}
 tr.goods table{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:6px}
@@ -188,13 +191,44 @@ function renderSup(){
   const tot=l.reduce((a,s)=>a+s.qty,0);
   let h='<div class="tbl"><table><thead><tr>'+COLS.map(([c,n,r])=>`<th class="${r||''}" data-k="${c}">${n}${k===c?`<span class="ar">${d>0?'▲':'▼'}</span>`:''}</th>`).join('')+'</tr></thead><tbody>';
   for(const s of l){const kk=key(s);
-    h+=`<tr class="row" data-key="${kk}" tabindex="0" aria-expanded="${S.open.has(kk)}"><td class="num">${s.id?s.id:'<span class="muted">заказ '+s.preorderID+'</span>'}</td><td class="cab">${esc(s.cabName)}</td><td>${esc(s.warehouse)}${s.transit?`<div class="cab">транзит: ${esc(s.transit)}</div>`:''}</td><td>${s.ff?esc(s.ff):'<span class="muted">—</span>'}</td><td>${esc(s.box)}</td><td><span class="pill s${s.status}">${ST[s.status]}</span></td><td class="num">${fD(s.planned,true)}</td><td class="r num">${fmtN(s.qty)}</td><td class="r">${acceptCell(s)}</td></tr>`;
+    h+=`<tr class="row" data-key="${kk}" tabindex="0" aria-expanded="${S.open.has(kk)}"><td class="num">${s.id?s.id:'<span class="muted">заказ '+s.preorderID+'</span>'}</td><td class="cab">${esc(s.cabName)}</td><td>${esc(s.warehouse)}${s.transit?`<div class="cab">транзит: ${esc(s.transit)}</div>`:''}</td><td>${s.id?ffSelect(s):(s.ff?esc(s.ff):'<span class="muted">—</span>')}</td><td>${esc(s.box)}</td><td><span class="pill s${s.status}">${ST[s.status]}</span></td><td class="num">${fD(s.planned,true)}</td><td class="r num">${fmtN(s.qty)}</td><td class="r">${acceptCell(s)}</td></tr>`;
     if(S.open.has(kk))h+=`<tr class="goods"><td colspan="${COLS.length}">${goodsTable(s)}</td></tr>`}
   h+=`<tr class="tot"><td colspan="7">Итого: ${l.length} ${pl(l.length,'поставка','поставки','поставок')}</td><td class="r num">${fmtN(tot)}</td><td></td></tr></tbody></table></div>`;
   $('view').innerHTML=h;
   $('view').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const c=th.dataset.k;S.sort=S.sort.k===c?{k:c,d:-S.sort.d}:{k:c,d:1};render()});
   $('view').querySelectorAll('tr.row').forEach(tr=>{const t=()=>{const kk=tr.dataset.key;S.open.has(kk)?S.open.delete(kk):S.open.add(kk);render()};tr.onclick=t;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t()}}});
+  $('view').querySelectorAll('select.ffsel').forEach(sel=>{sel.onclick=e=>e.stopPropagation();sel.onkeydown=e=>e.stopPropagation();sel.onchange=()=>changeFF(sel)});
 }
+// ---- ФФ поставки: выбор на сайте, сохраняется в docs/ff_map.json через GitHub ----
+const REPO='eroclincev-hue/statusostatki2026',FFMAP='docs/ff_map.json';
+let FFM={};
+function ffOptions(){const s=new Set([...FF_ORDER,'ФФ Краснодар','ФФ Казань']);(D?D.supplies:[]).forEach(x=>x.ff&&s.add(x.ff));Object.values(FFM).forEach(v=>v&&s.add(v));return [...s]}
+function ffSelect(s){const cur=s.ff||'';const o=ffOptions();if(cur&&!o.includes(cur))o.push(cur);
+  return `<select class="ffsel${cur?'':' empty'}" data-id="${s.id}" aria-label="ФФ поставки ${s.id}"><option value="">— не указан —</option>${o.map(f=>`<option${f===cur?' selected':''}>${esc(f)}</option>`).join('')}<option value="__new">Другой ФФ…</option></select>`}
+function applyFFM(){if(!D)return;D.supplies.forEach(s=>{if(s.id&&Object.prototype.hasOwnProperty.call(FFM,String(s.id)))s.ff=FFM[String(s.id)]})}
+function ghToken(ask){let t='';try{t=localStorage.getItem('gh-token')||''}catch(e){}
+  if(!t&&ask){t=(prompt('Чтобы выбор ФФ сохранился для всех, вставьте ключ GitHub (fine-grained token с доступом Contents: Read and write к репозиторию statusostatki2026). Он запомнится только в этом браузере.')||'').trim();if(t)try{localStorage.setItem('gh-token',t)}catch(e){}}
+  return t}
+const b64e=s=>btoa(unescape(encodeURIComponent(s))),b64d=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
+async function ghGet(t){const r=await fetch(`https://api.github.com/repos/${REPO}/contents/${FFMAP}?ref=main&t=${Date.now()}`,{headers:{Authorization:'Bearer '+t,Accept:'application/vnd.github+json'},cache:'no-store'});
+  if(r.status===401||r.status===403){try{localStorage.removeItem('gh-token')}catch(e){}throw new Error('ключ GitHub не подошёл')}
+  if(r.status===404)return {map:{},sha:null};if(!r.ok)throw new Error('GitHub '+r.status);const j=await r.json();return {map:JSON.parse(b64d(j.content)||'{}'),sha:j.sha}}
+async function saveFF(id,ff){const t=ghToken(true);if(!t)throw new Error('нет ключа GitHub');
+  for(let i=0;i<3;i++){const {map,sha}=await ghGet(t);map[String(id)]=ff;
+    const body={message:`ФФ поставки ${id}: ${ff||'не указан'}`,content:b64e(JSON.stringify(map,null,1)+'\n'),branch:'main'};if(sha)body.sha=sha;
+    const r=await fetch(`https://api.github.com/repos/${REPO}/contents/${FFMAP}`,{method:'PUT',headers:{Authorization:'Bearer '+t,Accept:'application/vnd.github+json'},body:JSON.stringify(body)});
+    if(r.ok){FFM=map;return}
+    if(r.status===401||r.status===403){try{localStorage.removeItem('gh-token')}catch(e){}throw new Error('ключ GitHub не подошёл или без права записи')}
+    if(r.status!==409&&r.status!==422)throw new Error('GitHub '+r.status)}
+  throw new Error('не получилось сохранить, попробуйте ещё раз')}
+async function changeFF(sel){const id=+sel.dataset.id,s=D.supplies.find(x=>x.id===id);if(!s)return;const prev=s.ff||'';let ff=sel.value;
+  if(ff==='__new'){ff=(prompt('Название ФФ:')||'').trim();if(!ff){sel.value=prev;return}}
+  sel.classList.add('saving');sel.disabled=true;
+  try{await saveFF(id,ff);s.ff=ff;render()}
+  catch(e){alert('ФФ не сохранён: '+e.message);s.ff=prev;render()}}
+function loadFFM(){const t=ghToken(false);
+  const p=t?ghGet(t).then(x=>x.map).catch(()=>fetch('ff_map.json',{cache:'no-store'}).then(r=>r.json())):fetch('ff_map.json',{cache:'no-store'}).then(r=>r.json());
+  return p.then(m=>{FFM=m||{}}).catch(()=>{})}
 function pl(n,a,b,c){const m=n%100,m1=n%10;return m>10&&m<20?c:m1===1?a:m1>=2&&m1<=4?b:c}
 
 function renderWh(){
@@ -384,7 +418,7 @@ function render(){
 $('wh').onchange=e=>{S.wh=e.target.value;render()};
 $('q').oninput=e=>{S.q=e.target.value;render()};
 
-fetch('data.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{D=d;$('upd').textContent=d.updated;
+Promise.all([fetch('data.json',{cache:'no-store'}).then(r=>r.json()),loadFFM()]).then(([d])=>{D=d;applyFFM();$('upd').textContent=d.updated;
   if(d.errors&&d.errors.length){$('errs').hidden=false;$('errs').textContent='Не всё загрузилось: '+d.errors.join('; ')}
   render()}).catch(()=>{$('view').innerHTML='<div class="tbl"><div class="empty">Не удалось загрузить данные. Обновите страницу.</div></div>'});
 fetch('stocks.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{K=d;if(S.tab==='stk'||S.tab==='sum'||S.tab==='cmp')render()}).catch(()=>{K={warehouses:[],items:[],updated:'—'};if(S.tab==='stk'||S.tab==='sum'||S.tab==='cmp')render()});

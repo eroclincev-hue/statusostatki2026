@@ -32,6 +32,16 @@ SUPPLY_FF = {
     41570920: 'ФФ2Б', 41589250: 'ФФ2Б', 41550383: 'Самара один квадрат', 41576705: 'ФФ Казань',
     41550424: 'Самара один квадрат', 41501471: 'ONYX FF', 41509141: 'ONYX FF',
 }
+# ФФ, выбранный Лилей в списке на сайте (docs/ff_map.json), важнее таблицы выше; пустая строка = «не указан»
+try:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'ff_map.json'), encoding='utf-8') as _f:
+        for _k, _v in json.load(_f).items():
+            if _v:
+                SUPPLY_FF[int(_k)] = _v
+            else:
+                SUPPLY_FF.pop(int(_k), None)
+except (OSError, ValueError):
+    pass
 # Артикулы, которые не показываем нигде на сайте
 HIDE_ARTICLES = {'губка_тест', 'наушники_с_экраном'}
 CONTENT = 'https://content-api.wildberries.ru/content/v2/get/cards/list'
