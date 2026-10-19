@@ -12,6 +12,7 @@ B = 'https://supplies-api.wildberries.ru/api/v1'
 # 1 Не запланировано, 2 Запланировано, 3 Отгрузка разрешена,
 # 4 Идёт приёмка, 5 Принято, 6 Отгружено на воротах
 STATUSES = {2: 'Запланировано', 3: 'Отгрузка разрешена', 4: 'Идёт приёмка'}
+GATE = 6  # «Отгружено на воротах»: идут отдельным списком gate (для колонки в сводке), во вкладке «Поставки» не показываются
 BOX = {0: 'Виртуальная', 1: 'Без коробов', 2: 'Короба', 5: 'Монопаллеты', 6: 'Суперсейф'}
 CABINETS = [('erokl', 'ИП Ероклинцев', 'TOKEN_2'), ('avanti', 'Аванти', 'TOKEN_1')]
 # Для кабинета показываем только поставки, где есть артикул с этой меткой (товар TESFE в Аванти помечен «_тф»)
@@ -81,7 +82,7 @@ def list_all(token):
     out, off = [], 0
     while True:
         page = call(token, 'POST', f'{B}/supplies?limit=1000&offset={off}',
-                    {'statusIDs': list(STATUSES)})
+                    {'statusIDs': list(STATUSES) + [GATE]})
         out += page or []
         if not page or len(page) < 1000:
             return out
@@ -101,7 +102,7 @@ def main(out_path):
     e = env()
     cache_path = os.path.join(HERE, 'cache.json')
     cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
-    new_cache, supplies, errors = {}, [], []
+    new_cache, supplies, gate, errors = {}, [], [], []
     bcache = cache.get('_brands', {})
     today = datetime.datetime.now(MSK).strftime('%Y-%m-%d')
     for cab, cab_name, key in CABINETS:
@@ -113,9 +114,9 @@ def main(out_path):
         except Exception as ex:
             errors.append(f'{cab_name}: {ex}'); continue
         # статусы из STATUSES; просроченные запланированные / с разрешённой отгрузкой убираем
-        lst = [x for x in lst if x.get('statusID') in STATUSES
+        lst = [x for x in lst if (x.get('statusID') in STATUSES or x.get('statusID') == GATE)
                and not (x['statusID'] in (2, 3) and x.get('supplyDate') and x['supplyDate'][:10] < today)]
-        print(cab_name, 'поставок:', len(lst), file=sys.stderr)
+        print(cab_name, 'поставок:', sum(x['statusID'] != GATE for x in lst), file=sys.stderr)
         for x in lst:
             pre = not x.get('supplyID')
             sid = x['preorderID'] if pre else x['supplyID']
@@ -155,10 +156,10 @@ def main(out_path):
                 if af and any(m in (gg.get('vendorCode') or '').lower() for m in af):
                     return 'TESFE'  # в Аванти бренд в карточках не заполнен, TESFE узнаём по артикулу
                 return (bcache.get(str(gg.get('nmID'))) or '').strip() or 'Без бренда'
-            supplies.append({
+            (gate if x['statusID'] == GATE else supplies).append({
                 'cab': cab, 'cabName': cab_name, 'ff': SUPPLY_FF.get(x.get('supplyID')) or '',
                 'id': x.get('supplyID'), 'preorderID': x.get('preorderID'),
-                'status': x['statusID'], 'statusName': STATUSES[x['statusID']],
+                'status': x['statusID'], 'statusName': STATUSES.get(x['statusID'], 'Отгружено на воротах'),
                 'box': BOX.get(d.get('boxTypeID', x.get('boxTypeID')), str(d.get('boxTypeID'))),
                 'created': x.get('createDate'), 'planned': x.get('supplyDate'), 'updated': x.get('updatedDate'),
                 'warehouse': d.get('warehouseName') or '', 'transit': d.get('transitWarehouseName') or '',
@@ -175,7 +176,7 @@ def main(out_path):
         new_cache['_brands'] = bcache
         json.dump(new_cache, open(cache_path, 'w'), ensure_ascii=False)
     data = {'updated': datetime.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'),
-            'supplies': supplies, 'errors': errors}
+            'supplies': supplies, 'gate': gate, 'errors': errors}
     json.dump(data, open(out_path, 'w'), ensure_ascii=False)
     print('итого', len(supplies), 'ошибок', len(errors), file=sys.stderr)
     for er in errors[:10]: print(' ', er, file=sys.stderr)
