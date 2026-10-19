@@ -317,14 +317,14 @@ async function exportReport(short){
     const FF=short?[]:FF_ORDER.filter(ff=>rows.some(x=>x.ffv[ff]));
     const brands=S.brands.size?[...S.brands].join(', '):'все бренды';
     const C=K.costs||{},cst=x=>C[x.k]??C[(x.article||'').toLowerCase()]??null;
-    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Остаток + поставки','Заказов в день','Оборачиваемость, дн.','Себестоимость за шт., руб','Себестоимость остатка, руб','Себестоимость остатка + поставок, руб','Склад WB','Отгружено на воротах','в т.ч. на ФФ у ИП Пицунов']
+    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Остаток + поставки','Заказов в день','Оборачиваемость, дн.','Себестоимость за шт., руб','Себестоимость остатка, руб','Себестоимость остатка + поставок, руб','Склад WB','Отгружено на воротах']
       :['Бренд','Артикул продавца','Баркод','Артикул WB','Артикул Ozon','Кабинет','Остаток на ФФ',...FF.map(f=>'в т.ч. '+f),'В поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.','Склад WB','Отгружено на воротах'];
     const data=[[`${short?'Краткий отчёт':'Отчёт'} по остаткам: ${brands}`],[`Данные на ${K.updated} МСК. Остаток на ФФ — сумма по всем фулфилментам; в поставках — FBO «Запланировано» и «Отгрузка разрешена». Канистры — по семействам в штучных.`],[],head];
     const sorted=[...rows].sort((a,b)=>a.brand.localeCompare(b.brand,'ru')||a.article.localeCompare(b.article,'ru',{numeric:true}));
-    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),cst(x)??'нет цены',cst(x)==null?'':Math.round(cst(x)*x.stock*100)/100,cst(x)==null?'':Math.round(cst(x)*(x.stock+x.plan)*100)/100,x.wb||0,x.gate||0,x.ffv['ИП Пицунов']||0]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
+    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),cst(x)??'нет цены',cst(x)==null?'':Math.round(cst(x)*x.stock*100)/100,cst(x)==null?'':Math.round(cst(x)*(x.stock+x.plan)*100)/100,x.wb||0,x.gate||0]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
       [...x.cabNames].join(' + ')||(x.cabs.has('avanti')?'Аванти':'Ероклинцев'),x.stock,...FF.map(f=>x.ffv[f]||0),x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),x.wb||0,x.gate||0]);
     const n=sorted.length,first=5,last=4+n,col=i=>XLSX.utils.encode_col(i);
-    const sumCols=short?[4,5,6,7,10,11,12,13,14]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length,11+FF.length,12+FF.length];
+    const sumCols=short?[4,5,6,7,10,11,12,13]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length,11+FF.length,12+FF.length];
     data.push(['Итого',...Array(head.length-1).fill('')]);
     const ws=XLSX.utils.aoa_to_sheet(data);
     for(const c of sumCols)ws[col(c)+(last+1)]={t:'n',f:`SUM(${col(c)}${first}:${col(c)}${last})`};
