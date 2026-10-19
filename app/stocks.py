@@ -193,7 +193,7 @@ def main(out_path):
     for it in items:
         by_art.setdefault(it['article'].lower(), it)
     for ff, v in real.items():
-        real_meta[ff] = {'time': v['time'], 'file': v['file'], 'unmatched': v['unmatched'], 'exclusive': v.get('exclusive', False), 'label': v.get('label'), 'fbs_ok': v.get('fbs_ok', False), 'file': v['file'], 'components': v.get('components', [])}
+        real_meta[ff] = {'time': v['time'], 'file': v['file'], 'unmatched': v['unmatched'], 'exclusive': v.get('exclusive', False), 'label': v.get('label'), 'fbs_ok': v.get('fbs_ok', False), 'whs': v.get('whs'), 'file': v['file'], 'components': v.get('components', [])}
         for r in v['rows']:
             if r['article'].lower() in HIDE_ARTICLES: continue
             it = by_art.get(r['article'].lower())

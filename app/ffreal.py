@@ -68,6 +68,44 @@ def load(ff, path, when=None):
     print(ff, 'загружено артикулов', len(data), 'время', when)
 
 
+PITSUNOV = 'ИП Пицунов'
+
+
+def load_pitsunov(path, when=None):
+    """Отчёт «Остатки» ВМС по ИП Пицунов (.xls/.xlsx, шапка над таблицей, колонки Код/Артикул/Наименование/Доступно).
+    Ключ — «Наименование» (это артикул продавца), штрихкод — «Код». Товар Аванти (ARTICLE_FILTER['avanti'])
+    не берётся — он уже учтён по кабинету Аванти. Заказы FBS не вычитаются (своих складов в кабинетах нет)."""
+    from fetch import ARTICLE_FILTER
+    avanti = ARTICLE_FILTER.get('avanti', [])
+    if path.lower().endswith('.xls'):
+        import xlrd
+        sh = xlrd.open_workbook(path).sheets()[0]
+        rows = [sh.row_values(i) for i in range(sh.nrows)]
+    else:
+        import openpyxl
+        rows = [list(r) for r in openpyxl.load_workbook(path, read_only=True, data_only=True).worksheets[0].iter_rows(values_only=True)]
+    cell = lambda r, i: str(r[i] if i < len(r) and r[i] is not None else '').strip()
+    hi = next(i for i, r in enumerate(rows) if 'Наименование' in [cell(r, j) for j in range(len(r))] and 'Доступно' in [cell(r, j) for j in range(len(r))])
+    h = [cell(rows[hi], j) for j in range(len(rows[hi]))]
+    ic, iname, ifree, itot = h.index('Код'), h.index('Наименование'), h.index('Доступно'), h.index('Остаток')
+    whs = next((cell(r, j + 1) for r in rows[:hi] for j in range(len(r) - 1) if cell(r, j) == 'склад:'), '')
+    data = {}
+    for r in rows[hi + 1:]:
+        a = cell(r, iname)
+        if not a or a.lower().startswith('итого'): continue
+        if any(m in a.lower() for m in avanti): continue
+        num = lambda i: int(float(r[i] or 0)) if i < len(r) and str(r[i]).strip() != '' else 0
+        bc = cell(r, ic).split('.')[0]
+        prev = data.get(a, {'free': 0, 'total': 0, 'barcodes': []})
+        data[a] = {'free': prev['free'] + max(num(ifree), 0), 'total': prev['total'] + num(itot),
+                   'barcodes': prev['barcodes'] + ([bc] if bc else []), 'title': a}
+    when = when or datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+    snaps = json.load(open(SNAP)) if os.path.exists(SNAP) else {}
+    snaps[PITSUNOV] = {'time': when, 'file': os.path.basename(path), 'rows': data, 'label': 'pitsunov', 'whs': whs}
+    json.dump(snaps, open(SNAP, 'w'), ensure_ascii=False, indent=1)
+    print(PITSUNOV, 'загружено артикулов', len(data), 'время', when)
+
+
 def capture_new(ff, when):
     """Заказы в статусе «Новый» на складах ФФ, созданные до времени выгрузки (оба кабинета)."""
     e, out = env(), []
@@ -204,6 +242,7 @@ def compute():
         for cab, key in CABS:
             tok = e.get(key)
             if not tok: continue
+            if ff not in FF_WH: continue  # своих складов в кабинетах нет (ИП Пицунов) — заказы не вычитаем
             wl = call(tok, 'GET', f'{MP}/api/v3/warehouses')
             wids = {w['id'] for w in wl if re.search(FF_WH[ff], w['name'], re.I)}
             if not wids: continue
@@ -227,7 +266,8 @@ def compute():
                 for a, r in sn['rows'].items()]
         res[ff] = {'time': sn['time'], 'file': sn['file'], 'rows': rows, 'unmatched': unmatched, 'pre': len(sn.get('pre', [])),
                    'components': sn.get('components', []),
-                   'label': sn.get('label'), 'fbs_ok': sn.get('fbs_ok', False)}
+                   'label': sn.get('label'), 'fbs_ok': sn.get('fbs_ok', False),
+                   'whs': sn.get('whs')}
     return res
 
 

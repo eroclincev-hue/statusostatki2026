@@ -10,7 +10,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import ffreal
 
-FOLDERS = {'ff1': 'ФФ №1', 'ff2b': 'ФФ2Б', 'flakony': 'Флаконы', 'onyx': 'ONYX FF'}
+FOLDERS = {'ff1': 'ФФ №1', 'ff2b': 'ФФ2Б', 'flakony': 'Флаконы', 'onyx': 'ONYX FF', 'pitsunov': ffreal.PITSUNOV}
 
 
 def commit_time(path):
@@ -26,12 +26,20 @@ def main():
     done = 0
     for folder, ff in FOLDERS.items():
         d = os.path.join(ROOT, 'uploads', folder)
-        files = sorted([f for f in os.listdir(d) if f.lower().endswith('.xlsx')], key=lambda f: commit_time(os.path.join(d, f)))
+        if not os.path.isdir(d): continue
+        ext = ('.xlsx', '.xls') if folder == 'pitsunov' else ('.xlsx',)
+        files = sorted([f for f in os.listdir(d) if f.lower().endswith(ext)], key=lambda f: commit_time(os.path.join(d, f)))
+        if folder == 'pitsunov' and any(f.lower().endswith('.xls') for f in files):
+            try:
+                import xlrd  # noqa: F401
+            except ImportError:
+                subprocess.run([sys.executable, '-m', 'pip', 'install', 'xlrd', '--break-system-packages', '-q'], check=False)
         for f in files:  # если файлов несколько, последней станет самая свежая выгрузка
             p = os.path.join(d, f)
             when = commit_time(p)
             print(f'{ff}: {f} от {when}')
-            ffreal.load(ff, p, when)
+            if folder == 'pitsunov': ffreal.load_pitsunov(p, when)
+            else: ffreal.load(ff, p, when)
             dst = os.path.join(ROOT, 'uploads', 'processed', f'{folder}_{when[:16].replace(":", "-")}_{f}')
             shutil.move(p, dst)
             done += 1
