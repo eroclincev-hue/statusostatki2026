@@ -57,6 +57,25 @@ def stocks_for(tok, wid, skus):
     return res
 
 
+WB_WH = 'Склад WB РФ'  # строка отчёта WB «Остатки на складах», которую показываем в сводке
+ANALYTICS = 'https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains'
+
+
+def wb_remains(tok):
+    """[(баркод, nmID, артикул продавца, остаток на «Склад WB РФ»)] из отчёта об остатках на складах WB (асинхронный)"""
+    t = call(tok, 'GET', ANALYTICS + '?groupByNm=true&groupBySa=true&groupByBarcode=true', tries=12)['data']['taskId']
+    for _ in range(40):
+        time.sleep(5)
+        if call(tok, 'GET', f'{ANALYTICS}/tasks/{t}/status')['data']['status'] == 'done':
+            break
+    out = []
+    for x in call(tok, 'GET', f'{ANALYTICS}/tasks/{t}/download') or []:
+        q = sum(w.get('quantity') or 0 for w in x.get('warehouses', []) if w.get('warehouseName') == WB_WH)
+        if q:
+            out.append((x.get('barcode') or '', x.get('nmId'), x.get('vendorCode') or '', q))
+    return out
+
+
 SALES_DAYS = 14
 CANCEL_WB = {'declined_by_client', 'canceled', 'canceled_by_client', 'canceled_by_missed_call'}
 
@@ -147,6 +166,20 @@ def main(out_path):
                 if amt and sku in sku2item:
                     d = sku2item[sku]['st']
                     d[str(wid)] = d.get(str(wid), 0) + amt
+        # остаток на «Склад WB РФ» (нужен доступ токена к «Аналитике»; без него колонка пустая)
+        try:
+            by_vc = {i['article'].lower(): i for i in items if i['cab'] == cab}
+            for bc, nm, vc, q in wb_remains(tok):
+                if vc.lower() in HIDE_ARTICLES: continue
+                it = sku2item.get(bc) or by_vc.get(vc.lower())
+                if not it:  # карточки нет в списке контента (архив) — заводим позицию по отчёту
+                    it = {'cab': cab, 'cabName': cab_name, 'nm': nm, 'article': vc, 'brand': BRAND_OVERRIDE.get(vc) or ('TESFE' if af else 'Без бренда'),
+                          'title': '', 'subject': '', 'st': {}, 'bc': bc}
+                    items.append(it); by_vc[vc.lower()] = it
+                it['wb'] = it.get('wb', 0) + q
+        except Exception as ex:
+            if '403' not in str(ex):
+                errors.append(f'{cab_name} {WB_WH}: {ex}')
         print(cab_name, 'товаров', len(c['cards']), 'складов', len(wl), file=sys.stderr)
     json.dump(ccache, open(cache_path, 'w'), ensure_ascii=False)
     # реальные остатки ФФ по выгрузкам ВМС
@@ -196,8 +229,8 @@ def main(out_path):
         oz = [x['oz'] for x in rs if x['oz']]
         if oz: it['oz'] = oz[0]
     data = {'updated': datetime.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'),
-            'warehouses': whs, 'items': [i for i in items if i['st'] or i.get('real') or i['sold']],
-            'real': real_meta, 'salesDays': SALES_DAYS, 'errors': errors,
+            'warehouses': whs, 'items': [i for i in items if i['st'] or i.get('real') or i['sold'] or i.get('wb')],
+            'real': real_meta, 'wbWh': WB_WH, 'salesDays': SALES_DAYS, 'errors': errors,
             'costs': json.load(open(os.path.join(HERE, 'costs.json'))) if os.path.exists(os.path.join(HERE, 'costs.json')) else {}}
     json.dump(data, open(out_path, 'w'), ensure_ascii=False)
     print('позиций с остатком', len(data['items']), 'ошибок', len(errors), file=sys.stderr)
