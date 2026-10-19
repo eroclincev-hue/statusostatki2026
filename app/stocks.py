@@ -197,7 +197,8 @@ def main(out_path):
         if oz: it['oz'] = oz[0]
     data = {'updated': datetime.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'),
             'warehouses': whs, 'items': [i for i in items if i['st'] or i.get('real') or i['sold']],
-            'real': real_meta, 'salesDays': SALES_DAYS, 'errors': errors}
+            'real': real_meta, 'salesDays': SALES_DAYS, 'errors': errors,
+            'costs': json.load(open(os.path.join(HERE, 'costs.json'))) if os.path.exists(os.path.join(HERE, 'costs.json')) else {}}
     json.dump(data, open(out_path, 'w'), ensure_ascii=False)
     print('позиций с остатком', len(data['items']), 'ошибок', len(errors), file=sys.stderr)
     for er in errors[:10]: print(' ', er, file=sys.stderr)

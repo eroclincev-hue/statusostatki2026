@@ -316,18 +316,20 @@ async function exportReport(short){
     const rows=LAST_SUM;if(!rows.length)return;
     const FF=short?[]:FF_ORDER.filter(ff=>rows.some(x=>x.ffv[ff]));
     const brands=S.brands.size?[...S.brands].join(', '):'все бренды';
-    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Остаток + поставки','Заказов в день','Оборачиваемость, дн.']
+    const C=K.costs||{},cst=x=>C[x.k]??C[(x.article||'').toLowerCase()]??null;
+    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Остаток + поставки','Заказов в день','Оборачиваемость, дн.','Себестоимость за шт., руб','Себестоимость остатка, руб','Себестоимость остатка + поставок, руб']
       :['Бренд','Артикул продавца','Баркод','Артикул WB','Артикул Ozon','Кабинет','Остаток на ФФ',...FF.map(f=>'в т.ч. '+f),'В поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.'];
     const data=[[`${short?'Краткий отчёт':'Отчёт'} по остаткам: ${brands}`],[`Данные на ${K.updated} МСК. Остаток на ФФ — сумма по всем фулфилментам; в поставках — FBO «Запланировано» и «Отгрузка разрешена». Канистры — по семействам в штучных.`],[],head];
     const sorted=[...rows].sort((a,b)=>a.brand.localeCompare(b.brand,'ru')||a.article.localeCompare(b.article,'ru',{numeric:true}));
-    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn)]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
+    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),cst(x)??'нет цены',cst(x)==null?'':Math.round(cst(x)*x.stock*100)/100,cst(x)==null?'':Math.round(cst(x)*(x.stock+x.plan)*100)/100]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
       [...x.cabNames].join(' + ')||(x.cabs.has('avanti')?'Аванти':'Ероклинцев'),x.stock,...FF.map(f=>x.ffv[f]||0),x.plan,x.stock+x.plan,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn)]);
     const n=sorted.length,first=5,last=4+n,col=i=>XLSX.utils.encode_col(i);
-    const sumCols=short?[4,5,6,7]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length];
+    const sumCols=short?[4,5,6,7,10,11]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length];
     data.push(['Итого',...Array(head.length-1).fill('')]);
     const ws=XLSX.utils.aoa_to_sheet(data);
     for(const c of sumCols)ws[col(c)+(last+1)]={t:'n',f:`SUM(${col(c)}${first}:${col(c)}${last})`};
-    ws['!cols']=head.map((h,i)=>({wch:i===1?34:short?(i<4?16:14):(i<6?16:12)}));
+    ws['!cols']=head.map((h,i)=>({wch:i===1?34:short?(i<4?16:i>=9?18:14):(i<6?16:12)}));
+    if(short)for(let r=first;r<=last+1;r++)for(const c of [9,10,11]){const cell=ws[col(c)+r];if(cell&&cell.t==='n')cell.z='#,##0.00'}
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Остатки');
     const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
     const d=new Date();const fn=`${short?'Остатки кратко':'Остатки'} ${S.brands.size?[...S.brands].join(' ').slice(0,60):'все бренды'} ${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}.xlsx`;
