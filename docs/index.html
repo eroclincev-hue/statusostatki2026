@@ -287,13 +287,18 @@ function renderStock(){
   let all=stockGroups().filter(r=>(r.t>0||Object.keys(r.g.real).length)&&(!S.cab||r.g.cabs.has(S.cab))&&(!q||r.g.article.toLowerCase().includes(q)||r.g.nm.some(n=>String(n).includes(q))||(r.g.title||'').toLowerCase().includes(q)));
   const bsel=brandChips(all.map(r=>r.g));
   if(S.brands.size)all=all.filter(r=>S.brands.has(r.g.brand));
+  if(!S.ffs)S.ffs=new Set();
+  const FFall=FF_ORDER.filter(ff=>REAL[ff]||all.some(r=>r.v[ff]));
+  for(const f of [...S.ffs])if(!FFall.includes(f))S.ffs.delete(f);
+  const fsel=`<div class="bar" style="margin-bottom:10px" id="ffBar"><span class="muted">ФФ:</span><button class="chip" data-f="" aria-pressed="${!S.ffs.size}">Все</button>${FFall.map(f=>`<button class="chip" data-f="${esc(f)}" aria-pressed="${S.ffs.has(f)}">${esc(f)}</button>`).join('')}</div>`;
+  const FF=S.ffs.size?FFall.filter(f=>S.ffs.has(f)):FFall;
+  if(S.ffs.size)all=all.map(r=>({...r,t:FF.reduce((a,f)=>a+(r.v[f]||0),0)})).filter(r=>FF.some(f=>r.v[f]||r.g.real[f]));
   const rows=all.sort((a,b)=>a.g.article.localeCompare(b.g.article,'ru',{numeric:true}));
-  const FF=FF_ORDER.filter(ff=>REAL[ff]||rows.some(r=>r.v[ff]));
-  const bind=bindChips;
+  const bind=()=>{bindChips();$('view').querySelectorAll('#ffBar .chip').forEach(c=>c.onclick=()=>{const f=c.dataset.f;if(!f)S.ffs.clear();else S.ffs.has(f)?S.ffs.delete(f):S.ffs.add(f);render()})};
   const realNote=Object.entries(REAL).map(([ff,m])=>m.label==='pitsunov'?`<b>${esc(ff)}</b>: отчёт ВМС «Остатки» от ${fDT(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())} МСК (${esc(m.whs||'')}), без товара Аванти`:m.label==='приход'?`<b>${esc(ff)}</b>: короба 60×40×40 по приходу минус заказы FBS, остальное по FBS в кабинете`:m.exclusive?`<b>${esc(ff)}</b>: канистры по 1С минус поставки FBO и заказы FBS с ${fD(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())}, остаток всего семейства в штучных на исходном артикуле`:`<b>${esc(ff)}</b>: выгрузка ВМС от ${fDT(new Date(new Date(m.time).getTime()+3*3600e3).toISOString())} МСК минус заказы FBS после неё`).join(' · ');
-  const head=bsel;
+  const head=fsel+bsel;
   if(!rows.length){$('view').innerHTML=head+'<div class="tbl"><div class="empty">Нет остатков по этим фильтрам.</div></div>';bind();return}
-  let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th><th>Кабинет</th><th class="r">Всего</th>'+FF.map(ff=>`<th class="r wh">${esc(ff)}${REAL[ff]&&!REAL[ff].fbs_ok?`<div class="src">${REAL[ff].exclusive?'1С':'ВМС'}</div>`:''}</th>`).join('')+'</tr></thead><tbody>';
+  let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Артикул</th><th>Бренд</th><th>Кабинет</th><th class="r">'+(S.ffs.size?'Всего по выбранным':'Всего')+'</th>'+FF.map(ff=>`<th class="r wh">${esc(ff)}${REAL[ff]&&!REAL[ff].fbs_ok?`<div class="src">${REAL[ff].exclusive?'1С':'ВМС'}</div>`:''}</th>`).join('')+'</tr></thead><tbody>';
   for(const r of rows){h+=`<tr><td title="${esc(r.g.title)}">${esc(r.g.article)}</td><td class="cab">${esc(r.g.brand)}</td><td class="cab">${esc([...r.g.cabNames].join(' + '))}</td><td class="r num"><b>${fmtN(r.t)}</b></td>`+
     FF.map(ff=>r.v[ff]!=null&&(r.v[ff]||REAL[ff]&&r.g.real[ff])?`<td class="r num${REAL[ff]?(r.g.real[ff]?' real':(REAL[ff].fbs_ok?'':' fbs')):''}${r.v[ff]===0?' zero':''}" title="${esc(r.tip[ff])}">${fmtN(r.v[ff])}</td>`:'<td class="r num"><span class="muted">·</span></td>').join('')+'</tr>'}
   const T=rows.reduce((a,r)=>a+r.t,0);
