@@ -60,9 +60,17 @@ def load(ff, path, when=None):
                    'barcodes': prev['barcodes'] + [b for b in bcs if b], 'title': (r[iname] if iname is not None else '') or ''}
     when = when or datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
     snaps = json.load(open(SNAP)) if os.path.exists(SNAP) else {}
+    old = snaps.get(ff, {})
+    # строки отдельных выгрузок других кабинетов (load_cabinet_rows) сохраняем как есть
+    kept = {a: r for a, r in old.get('rows', {}).items() if r.get('cab')}
+    kept_cabs = {r['cab'] for r in kept.values()}
+    for a in kept:
+        data.pop(a, None)
+    data.update(kept)
     snaps[ff] = {'time': when, 'file': os.path.basename(path), 'rows': data, 'components': comps}
     if ff in PRE_NEW_FF:
-        snaps[ff]['pre'] = capture_new(ff, when)
+        snaps[ff]['pre'] = [o for o in capture_new(ff, when) if o['cab'] not in kept_cabs] + \
+                           [o for o in old.get('pre', []) if o.get('cab') in kept_cabs]
         print(ff, 'зафиксировано новых заказов до выгрузки:', len(snaps[ff]['pre']))
     json.dump(snaps, open(SNAP, 'w'), ensure_ascii=False, indent=1)
     print(ff, 'загружено артикулов', len(data), 'время', when)
