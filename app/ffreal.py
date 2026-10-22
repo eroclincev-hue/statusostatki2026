@@ -106,6 +106,42 @@ def load_pitsunov(path, when=None):
     print(PITSUNOV, 'загружено артикулов', len(data), 'время', when)
 
 
+def load_cabinet_rows(ff, path, cab, when, only=None):
+    """Добавить в базу ФФ строки из отдельной выгрузки ВМС по другому кабинету (например, Аванти на ФФ2Б).
+    У строк своё время выгрузки и свой кабинет: заказы считаются только этого кабинета и только после when.
+    Заказы этого кабинета в статусе «Новый» на момент выгрузки тоже вычитаются (для ФФ из PRE_NEW_FF)."""
+    import openpyxl
+    rows = list(openpyxl.load_workbook(path, read_only=True, data_only=True).worksheets[0].iter_rows(values_only=True))
+    h = [str(x or '').strip() for x in rows[0]]
+    ia, ib, ifree, itot, iname = h.index('Артикул'), h.index('Barcode'), h.index('Доступно'), h.index('Остаток'), h.index('Наименование')
+    snaps = json.load(open(SNAP))
+    sn = snaps[ff]
+    # убрать прежние строки этого кабинета
+    sn['rows'] = {a: r for a, r in sn['rows'].items() if r.get('cab') != cab}
+    added = []
+    for r in rows[1:]:
+        if not r or not r[ia]: continue
+        a = re.sub(r'_\s+', '_', str(r[ia]).strip())
+        if only and not any(m in a.lower() for m in only): continue
+        sn['rows'][a] = {'free': max(int(r[ifree] or 0), 0), 'total': int(r[itot] or 0),
+                         'barcodes': [str(r[ib]).strip()] if r[ib] else [], 'title': r[iname] or '',
+                         'cab': cab, 'since': when, 'file': os.path.basename(path)}
+        added.append(a)
+    if ff in PRE_NEW_FF:
+        tok = env()[dict(CABS)[cab]]
+        t = datetime.datetime.fromisoformat(when).astimezone(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S')
+        wl = call(tok, 'GET', f'{MP}/api/v3/warehouses')
+        wids = {w['id'] for w in wl if re.search(FF_WH[ff], w['name'], re.I)}
+        low = {a.lower() for a in added}
+        sn['pre'] = [o for o in sn.get('pre', []) if o.get('cab') != cab]
+        for o in call(tok, 'GET', f'{MP}/api/v3/orders/new').get('orders', []):
+            if o['warehouseId'] in wids and o['createdAt'][:19] < t and (o.get('article') or '').lower() in low:
+                sn['pre'].append({'cab': cab, 'id': o['id'], 'article': o.get('article'), 'skus': o.get('skus', []),
+                                  'warehouseId': o['warehouseId'], 'createdAt': o['createdAt']})
+    json.dump(snaps, open(SNAP, 'w'), ensure_ascii=False, indent=1)
+    return added, [o for o in sn.get('pre', []) if o.get('cab') == cab]
+
+
 def capture_new(ff, when):
     """Заказы в статусе «Новый» на складах ФФ, созданные до времени выгрузки (оба кабинета)."""
     e, out = env(), []
@@ -254,12 +290,18 @@ def compute():
                     for x in call(tok, 'POST', f'{MP}/api/v3/orders/status', {'orders': ids[i:i + 1000]}).get('orders', []):
                         st[x['id']] = x
                 orders = orders + pre
+            pre_ids = {o['id'] for o in pre}
             for o in orders:
                 s = st.get(o['id'], {})
                 if s.get('supplierStatus') == 'cancel': continue
                 if s.get('wbStatus') in CANCEL_WB and s.get('supplierStatus') in (None, 'new', 'confirm'): continue
                 art = (o.get('article') or '')
                 a = by_art.get(art.lower()) or by_art.get(base_article(art).lower()) or next((by_bc[b] for b in o.get('skus', []) if b in by_bc), None)
+                if a:
+                    row = sn['rows'][a]
+                    # строки из отдельной выгрузки кабинета (например, Аванти на ФФ2Б): свой кабинет и своё время
+                    if row.get('cab') and row['cab'] != cab: continue
+                    if row.get('since') and o['id'] not in pre_ids and o.get('createdAt', '')[:19] < row['since'][:19]: continue
                 if a: used[a] += 1
                 else: unmatched[o.get('article')] = unmatched.get(o.get('article'), 0) + 1
         rows = [{'article': a, 'title': r['title'], 'base': r['free'], 'orders': used[a], 'now': max(r['free'] - used[a], 0)}

@@ -123,7 +123,7 @@ def main(out_path):
         tok = e[key]
         # карточки: Ероклинцев небольшой, тянем каждый раз; Аванти 18 тыс. — кешируем на сутки
         c = ccache.get(cab)
-        if not c or c['day'] != datetime.datetime.now(MSK).strftime('%Y-%m-%d'):
+        if not c or not c.get('cards') or c['day'] != datetime.datetime.now(MSK).strftime('%Y-%m-%d'):
             try:
                 cards = all_cards(tok)
             except Exception as ex:
