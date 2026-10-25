@@ -322,14 +322,14 @@ async function exportReport(short){
     const FF=short?[]:FF_ORDER.filter(ff=>rows.some(x=>x.ffv[ff]));
     const brands=S.brands.size?[...S.brands].join(', '):'все бренды';
     const C=K.costs||{},cst=x=>C[x.k]??C[(x.article||'').toLowerCase()]??null;
-    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.','Себестоимость за шт., руб','Себестоимость остатка, руб','Себестоимость итого с поставками, руб','Склад WB','Отгружено на воротах']
-      :['Бренд','Артикул продавца','Баркод','Артикул WB','Артикул Ozon','Кабинет','Остаток на ФФ',...FF.map(f=>'в т.ч. '+f),'В поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.','Склад WB','Отгружено на воротах'];
-    const data=[[`${short?'Краткий отчёт':'Отчёт'} по остаткам: ${brands}`],[`Данные на ${K.updated} МСК. Остаток на ФФ — сумма по всем фулфилментам; в поставках — FBO «Запланировано» и «Отгрузка разрешена»; итого с поставками = остаток на ФФ + склад WB + отгружено на воротах + поставки. Канистры — по семействам в штучных.`],[],head];
+    const head=short?['Бренд','Артикул продавца','Баркод','Артикул WB','Общий остаток на ФФ','Запланировано в поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.','Себестоимость за шт., руб','Себестоимость остатка, руб','Себестоимость итого с поставками, руб','Склад WB','Отгружено на воротах','На ФФ всего (до вычета поставок)']
+      :['Бренд','Артикул продавца','Баркод','Артикул WB','Артикул Ozon','Кабинет','Остаток на ФФ',...FF.map(f=>'в т.ч. '+f),'В поставках FBO','Итого с поставками','Заказов в день','Оборачиваемость, дн.','Склад WB','Отгружено на воротах','На ФФ всего (до вычета поставок)'];
+    const data=[[`${short?'Краткий отчёт':'Отчёт'} по остаткам: ${brands}`],[`Данные на ${K.updated} МСК. Остаток на ФФ — сумма по всем фулфилментам минус товар в запланированных поставках FBO; в поставках — FBO «Запланировано» и «Отгрузка разрешена»; итого с поставками = остаток на ФФ + поставки + склад WB + отгружено на воротах. Канистры — по семействам в штучных.`],[],head];
     const sorted=[...rows].sort((a,b)=>a.brand.localeCompare(b.brand,'ru')||a.article.localeCompare(b.article,'ru',{numeric:true}));
-    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.total,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),cst(x)??'нет цены',cst(x)==null?'':Math.round(cst(x)*x.stock*100)/100,cst(x)==null?'':Math.round(cst(x)*(x.total)*100)/100,x.wb||0,x.gate||0]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
-      [...x.cabNames].join(' + ')||(x.cabs.has('avanti')?'Аванти':'Ероклинцев'),x.stock,...FF.map(f=>x.ffv[f]||0),x.plan,x.total,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),x.wb||0,x.gate||0]);
+    for(const x of sorted)if(short)data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),x.stock,x.plan,x.total,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),cst(x)??'нет цены',cst(x)==null?'':Math.round(cst(x)*x.stock*100)/100,cst(x)==null?'':Math.round(cst(x)*(x.total)*100)/100,x.wb||0,x.gate||0,x.ffAll]);else data.push([x.brand,x.article,[...new Set(x.bc)].join(', '),[...new Set(x.nm)].join(', '),[...new Set(x.oz)].join(', '),
+      [...x.cabNames].join(' + ')||(x.cabs.has('avanti')?'Аванти':'Ероклинцев'),x.stock,...FF.map(f=>x.ffv[f]||0),x.plan,x.total,Math.round(x.perDay*10)/10,x.turn==null?'':Math.round(x.turn),x.wb||0,x.gate||0,x.ffAll]);
     const n=sorted.length,first=5,last=4+n,col=i=>XLSX.utils.encode_col(i);
-    const sumCols=short?[4,5,6,7,10,11,12,13]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length,11+FF.length,12+FF.length];
+    const sumCols=short?[4,5,6,7,10,11,12,13,14]:[6,...FF.map((_,i)=>7+i),7+FF.length,8+FF.length,9+FF.length,11+FF.length,12+FF.length,13+FF.length];
     data.push(['Итого',...Array(head.length-1).fill('')]);
     const ws=XLSX.utils.aoa_to_sheet(data);
     for(const c of sumCols)ws[col(c)+(last+1)]={t:'n',f:`SUM(${col(c)}${first}:${col(c)}${last})`};
@@ -349,7 +349,12 @@ function renderSum(){
   const keyOf=a=>{const f=famOf[(a||'').toLowerCase()];return f?[f[0].toLowerCase(),f[1]]:[(a||'').toLowerCase().replace(/[\s_]*дубль\d*$/,''),1]};
   // план: поставки FBO «Запланировано» и «Отгрузка разрешена»
   const plan={},planCab={};
-  for(const sp of D.supplies)if(sp.status===2||sp.status===3)for(const g of sp.goods){const [k,n]=keyOf(g.article);plan[k]=(plan[k]||0)+g.qty*n;(planCab[k]=planCab[k]||new Set()).add(sp.cab)}
+  // ded: сколько из плана вычесть из остатка ФФ (товар запланированных поставок ещё лежит на ФФ).
+  // Канистры по 1С (Граф, Самара) уже посчитаны за вычетом своих поставок FBO — их повторно не вычитаем.
+  const doneIds=new Set();for(const m of Object.values(K.real||{}))(m.fboIds||[]).forEach(i=>doneIds.add(String(i)));
+  const ded={};
+  for(const sp of D.supplies)if(sp.status===2||sp.status===3)for(const g of sp.goods){const [k,n]=keyOf(g.article);plan[k]=(plan[k]||0)+g.qty*n;(planCab[k]=planCab[k]||new Set()).add(sp.cab);
+    if(!(/анистр/i.test(g.article||'')&&doneIds.has(String(sp.id))))ded[k]=(ded[k]||0)+g.qty*n}
   // FBO «Отгружено на воротах» — уже привезены на склад WB, ещё не приняты
   const gate={};for(const sp of (D.gate||[]))if(!S.cab||sp.cab===S.cab)for(const g of sp.goods){const [k,n]=keyOf(g.article);gate[k]=(gate[k]||0)+g.qty*n;(planCab[k]=planCab[k]||new Set()).add(sp.cab)}
   // остаток на «Склад WB РФ» (FBO) по тем же ключам
@@ -365,7 +370,7 @@ function renderSum(){
   for(const k of [...Object.keys(plan),...Object.keys(gate),...Object.keys(wbq)])if(!R.has(k)){const it=K.items.find(i=>i.article.toLowerCase()===k);
     R.set(k,{k,article:it?it.article:k,brand:it?it.brand:'Без бренда',title:it?it.title:'',nm:it&&it.nm?[it.nm]:[],bc:it&&it.bc?[it.bc]:[],oz:it&&it.oz?[it.oz]:[],cabs:planCab[k]||new Set(it?[it.cab]:[]),cabNames:new Set(),stock:0,sold:it?(it.sold||0):0,members:1,ffv:{}})}
   const q=S.q.trim().toLowerCase();
-  let rows=[...R.values()].map(x=>({...x,plan:plan[x.k]||0,wb:wbq[x.k]||0,gate:gate[x.k]||0,perDay:x.sold/days})).map(x=>({...x,total:x.stock+x.gate+x.plan+x.wb})).filter(x=>x.stock||x.plan||x.sold||x.wb||x.gate)
+  let rows=[...R.values()].map(x=>({...x,plan:plan[x.k]||0,wb:wbq[x.k]||0,gate:gate[x.k]||0,perDay:x.sold/days})).map(x=>({...x,ffAll:x.stock,ded:ded[x.k]||0,stock:Math.max(x.stock-(ded[x.k]||0),0)})).map(x=>({...x,total:x.stock+x.gate+x.plan+x.wb})).filter(x=>x.stock||x.plan||x.sold||x.wb||x.gate)
     .filter(x=>(!S.cab||x.cabs.has(S.cab))&&(!q||x.article.toLowerCase().includes(q)||x.nm.some(n=>String(n).includes(q))||x.bc.some(b=>b.includes(q))||x.oz.some(o=>o.includes(q))||(x.title||'').toLowerCase().includes(q)));
   const bsel=brandChips(rows);
   if(S.brands.size)rows=rows.filter(x=>S.brands.has(x.brand));
@@ -377,13 +382,13 @@ function renderSum(){
   const bind=()=>{bindChips();$('view').querySelectorAll('#sumSort button').forEach(b=>b.onclick=()=>{S.sumSort=b.dataset.s;render()});setupDownload()};
   if(!rows.length){$('view').innerHTML=head+'<div class="tbl"><div class="empty">Нет данных по этим фильтрам.</div></div>';bind();return}
   const tcls=t=>t==null?'muted':t<7?'diff-neg':t<14?'warn':'';
-  let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Баркод</th><th>Артикул WB</th><th>Артикул Ozon</th><th>Артикул продавца</th><th>Бренд</th><th class="r">Остаток на ФФ</th><th class="r" title="'+esc(K.wbWh||'Склад WB РФ')+' — из отчёта WB об остатках на складах">Склад WB</th><th class="r" title="Поставки FBO в статусе «Отгружено на воротах»: привезены на склад WB, ещё не приняты">Отгружено на воротах</th><th class="r">План поставок</th><th class="r" title="Остаток на ФФ + склад WB + отгружено на воротах + план поставок">Итого с поставками</th><th class="r">Заказов в день</th><th class="r">Оборачиваемость, дн.</th></tr></thead><tbody>';
+  let h=head+'<div class="tbl"><table class="art"><thead><tr><th>Баркод</th><th>Артикул WB</th><th>Артикул Ozon</th><th>Артикул продавца</th><th>Бренд</th><th class="r" title="Остаток на всех ФФ минус товар запланированных поставок FBO (он ещё на ФФ, но уже распределён)">Остаток на ФФ<div class="src">без плана поставок</div></th><th class="r" title="'+esc(K.wbWh||'Склад WB РФ')+' — из отчёта WB об остатках на складах">Склад WB</th><th class="r" title="Поставки FBO в статусе «Отгружено на воротах»: привезены на склад WB, ещё не приняты">Отгружено на воротах</th><th class="r">План поставок</th><th class="r" title="Остаток на ФФ (без плана поставок) + план поставок + склад WB + отгружено на воротах">Итого с поставками</th><th class="r">Заказов в день</th><th class="r">Оборачиваемость, дн.</th></tr></thead><tbody>';
   for(const x of rows){const bc=[...new Set(x.bc)],nm=[...new Set(x.nm)];
     h+=`<tr><td class="num">${bc.length?esc(bc[0])+(bc.length>1?` <span class="muted" title="${esc(bc.join(', '))}">+${bc.length-1}</span>`:''):'<span class="muted">—</span>'}</td>`+
       `<td class="num">${nm.length?esc(nm[0])+(nm.length>1?` <span class="muted" title="${esc(nm.join(', '))}">+${nm.length-1}</span>`:''):'<span class="muted">—</span>'}</td>`+
       `<td class="num">${x.oz.length?esc([...new Set(x.oz)].join(', ')):'<span class="muted">—</span>'}</td>`+
       `<td title="${esc(x.title)}">${esc(x.article)}${x.members>1?`<div class="cab">${famOf[x.k]?'все артикулы семейства':'вместе с дублем'}</div>`:''}${x.cabs.size>1?'<div class="cab">Ероклинцев + Аванти</div>':x.cabs.has('avanti')?'<div class="cab">Аванти</div>':''}</td>`+
-      `<td class="cab">${esc(x.brand)}</td><td class="r num"><b>${fmtN(x.stock)}</b></td><td class="r num">${x.wb?fmtN(x.wb):'<span class="muted">—</span>'}</td><td class="r num">${x.gate?fmtN(x.gate):'<span class="muted">—</span>'}</td><td class="r num">${x.plan?fmtN(x.plan):'<span class="muted">—</span>'}</td><td class="r num"><b>${fmtN(x.total)}</b></td>`+
+      `<td class="cab">${esc(x.brand)}</td><td class="r num${x.ded&&x.ded>x.ffAll?' diff-neg':''}" title="${esc(x.ded?`На ФФ всего: ${fmtN(x.ffAll)}\nВ запланированных поставках: −${fmtN(x.ded)}${x.ded>x.ffAll?'\nВ поставках больше, чем на ФФ — показан 0':''}\nОстаток: ${fmtN(x.stock)}`:`На ФФ всего: ${fmtN(x.ffAll)}`)}"><b>${fmtN(x.stock)}</b></td><td class="r num">${x.wb?fmtN(x.wb):'<span class="muted">—</span>'}</td><td class="r num">${x.gate?fmtN(x.gate):'<span class="muted">—</span>'}</td><td class="r num">${x.plan?fmtN(x.plan):'<span class="muted">—</span>'}</td><td class="r num"><b>${fmtN(x.total)}</b></td>`+
       `<td class="r num">${x.perDay?x.perDay.toLocaleString('ru-RU',{maximumFractionDigits:1}):'<span class="muted">—</span>'}</td>`+
       `<td class="r num ${tcls(x.turn)}">${x.turn==null?'—':x.turn===0?'0':x.turn<1?'&lt;1':fmtN(Math.round(x.turn))}</td></tr>`}
   h+=`<tr class="tot"><td colspan="5">Итого: ${rows.length} ${pl(rows.length,'артикул','артикула','артикулов')}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.stock,0))}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.wb,0))}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.gate,0))}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.plan,0))}</td><td class="r num">${fmtN(rows.reduce((a,x)=>a+x.total,0))}</td><td class="r num">${rows.reduce((a,x)=>a+x.perDay,0).toLocaleString('ru-RU',{maximumFractionDigits:0})}</td><td></td></tr></tbody></table></div>`;
