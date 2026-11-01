@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SNAP = os.path.join(HERE, 'ff_snapshots.json')
 MP = 'https://marketplace-api.wildberries.ru'
 # склады ФФ по кабинетам: регулярка по имени склада
-FF_WH = {'ФФ №1': r'^(фулфилмент №1|фф№1|фф №1)', 'ФФ2Б': r'^(?!dbs).*(ff2b|фф2б)', 'Флаконы': r'^флаконы', 'ONYX FF': r'^onyx', 'Граф': r'^граф', 'Самара один квадрат': r'^самара один квадрат', '3PL': r'^3pl'}
+FF_WH = {'ФФ №1': r'^(фулфилмент №1|фф№1|фф №1)', 'ФФ2Б': r'^(?!dbs).*(ff2b|фф2б)', 'Флаконы': r'^флаконы', 'ONYX FF': r'^onyx', 'Граф': r'^граф', '3PL': r'^3pl'}
 
 
 def base_article(a):

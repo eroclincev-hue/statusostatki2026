@@ -251,8 +251,8 @@ function renderArt(){
 }
 
 let K=null; // остатки
-const FF_ORDER=['Граф','ФФ2Б','ФФ №1','Самара один квадрат','ONYX FF','Доски','Флаконы','3PL','TESFE','ИП Пицунов'];
-const POOLED=new Set(['ФФ №1','Самара один квадрат','Флаконы']);
+const FF_ORDER=['Граф','ФФ2Б','ФФ №1','ONYX FF','Доски','Флаконы','3PL','TESFE','ИП Пицунов'];
+const POOLED=new Set(['ФФ №1','Флаконы']);
 function stockGroups(){
   const W={};K.warehouses.forEach(w=>W[w.id]=w);
   const REAL=K.real||{};
