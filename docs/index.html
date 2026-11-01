@@ -17,7 +17,7 @@
 :root{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#14232b; --muted:#5d6d75; --line:#dbe2e5;
   --accent:#0b6e75; --accent-soft:#e0f0f0;
-  --st2:#5b6ea8; --st2-bg:#e8ecf7; --st3:#a76a07; --st3-bg:#fbf0db; --st4:#1d7a46; --st4-bg:#e2f3e9;
+  --st2:#5b6ea8; --st2-bg:#e8ecf7; --st3:#a76a07; --st3-bg:#fbf0db; --st4:#1d7a46; --st4-bg:#e2f3e9; --st6:#6b4ea8; --st6-bg:#efe9f7;
   --bad:#b3372b; --bad-bg:#fbe7e4;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
@@ -25,12 +25,12 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0f171b; --surface:#16222a; --fg:#e3ecef; --muted:#93a4ac; --line:#28363e;
   --accent:#4fc1c4; --accent-soft:#163a3d;
-  --st2:#9eb0ea; --st2-bg:#232c48; --st3:#f0b54f; --st3-bg:#3b2d12; --st4:#5fd08f; --st4-bg:#173826;
+  --st2:#9eb0ea; --st2-bg:#232c48; --st3:#f0b54f; --st3-bg:#3b2d12; --st4:#5fd08f; --st4-bg:#173826; --st6:#b9a3ea; --st6-bg:#2b2348;
   --bad:#ff8a7b; --bad-bg:#43211c; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f171b; --surface:#16222a; --fg:#e3ecef; --muted:#93a4ac; --line:#28363e;
   --accent:#4fc1c4; --accent-soft:#163a3d;
-  --st2:#9eb0ea; --st2-bg:#232c48; --st3:#f0b54f; --st3-bg:#3b2d12; --st4:#5fd08f; --st4-bg:#173826;
+  --st2:#9eb0ea; --st2-bg:#232c48; --st3:#f0b54f; --st3-bg:#3b2d12; --st4:#5fd08f; --st4-bg:#173826; --st6:#b9a3ea; --st6-bg:#2b2348;
   --bad:#ff8a7b; --bad-bg:#43211c; color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
@@ -78,7 +78,7 @@ tr.goods td{background:var(--bg);white-space:normal;padding:10px 14px 14px}
 tr.goods table{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:6px}
 tr.goods th{position:static;cursor:default}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:500;color:var(--c);background:var(--cb)}
-.s2{--c:var(--st2);--cb:var(--st2-bg)} .s3{--c:var(--st3);--cb:var(--st3-bg)} .s4{--c:var(--st4);--cb:var(--st4-bg)}
+.s2{--c:var(--st2);--cb:var(--st2-bg)} .s3{--c:var(--st3);--cb:var(--st3-bg)} .s4{--c:var(--st4);--cb:var(--st4-bg)} .s6{--c:var(--st6);--cb:var(--st6-bg)}
 .flag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:4px;font-size:11px;font-weight:600;color:var(--bad);background:var(--bad-bg)}
 .diff-pos{color:var(--st4)} .warn{color:var(--st3)} .diff-neg{color:var(--bad)}
 .muted{color:var(--muted)}
@@ -125,7 +125,7 @@ td.zero{color:var(--bad);font-weight:600}
 </div>
 
 <script>
-const ST={2:'Запланировано',3:'Отгрузка разрешена',4:'Идёт приёмка'};
+const ST={2:'Запланировано',3:'Отгрузка разрешена',6:'Отгружено на воротах',4:'Идёт приёмка'};
 const S={cab:'',st:null,wh:'',q:'',tab:'sup',brands:new Set(),sort:{k:'planned',d:1},open:new Set()};
 let D={supplies:[]};
 const $=id=>document.getElementById(id);
@@ -150,7 +150,7 @@ function renderStats(){
   const base=filtered(false);
   const all={n:base.length,u:base.reduce((a,s)=>a+s.qty,0)};
   let h=`<button class="stat" style="--c:var(--accent)" aria-pressed="${S.st==null}" data-st=""><span class="lbl">Все в работе</span><span class="big num">${fmtN(all.n)}</span><span class="sub"><span class="num">${fmtN(all.u)}</span> шт.</span></button>`;
-  for(const k of [2,3,4]){const l=base.filter(s=>s.status==k);const u=l.reduce((a,s)=>a+s.qty,0);
+  for(const k of [2,3,6,4]){const l=base.filter(s=>s.status==k);const u=l.reduce((a,s)=>a+s.qty,0);
     h+=`<button class="stat s${k}" aria-pressed="${S.st==k}" data-st="${k}"><span class="lbl">${ST[k]}</span><span class="big num">${fmtN(l.length)}</span><span class="sub"><span class="num">${fmtN(u)}</span> шт.</span></button>`}
   $('stats').innerHTML=h;
   $('stats').querySelectorAll('.stat').forEach(b=>b.onclick=()=>{S.st=b.dataset.st===''?null:+b.dataset.st;render()});
@@ -420,7 +420,7 @@ function render(){
 $('wh').onchange=e=>{S.wh=e.target.value;render()};
 $('q').oninput=e=>{S.q=e.target.value;render()};
 
-Promise.all([fetch('data.json',{cache:'no-store'}).then(r=>r.json()),loadFFM()]).then(([d])=>{D=d;applyFFM();$('upd').textContent=d.updated;
+Promise.all([fetch('data.json',{cache:'no-store'}).then(r=>r.json()),loadFFM()]).then(([d])=>{D=d;D.supplies=[...(d.supplies||[]),...(d.gate||[])];applyFFM();$('upd').textContent=d.updated;
   if(d.errors&&d.errors.length){$('errs').hidden=false;$('errs').textContent='Не всё загрузилось: '+d.errors.join('; ')}
   render()}).catch(()=>{$('view').innerHTML='<div class="tbl"><div class="empty">Не удалось загрузить данные. Обновите страницу.</div></div>'});
 fetch('stocks.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{K=d;if(S.tab==='stk'||S.tab==='sum'||S.tab==='cmp')render()}).catch(()=>{K={warehouses:[],items:[],updated:'—'};if(S.tab==='stk'||S.tab==='sum'||S.tab==='cmp')render()});
