@@ -355,6 +355,9 @@ function renderSum(){
   const ded={};
   for(const sp of D.supplies)if(sp.status===2||sp.status===3)for(const g of sp.goods){const [k,n]=keyOf(g.article);plan[k]=(plan[k]||0)+g.qty*n;(planCab[k]=planCab[k]||new Set()).add(sp.cab);
     if(!(/анистр/i.test(g.article||'')&&doneIds.has(String(sp.id))))ded[k]=(ded[k]||0)+g.qty*n}
+  // ВМС: товар уже собранных поставок ФФ держит в резерве (Остаток − Свободный) и в «свободный» не включает — его повторно не вычитаем
+  const resv={};for(const it of K.items)for(const r of Object.values(it.real||{}))if(r.reserve>0){const [k,n]=keyOf(it.article);resv[k]=(resv[k]||0)+r.reserve*n}
+  for(const k of Object.keys(ded))if(resv[k])ded[k]=Math.max(ded[k]-resv[k],0);
   // FBO «Отгружено на воротах» — уже привезены на склад WB, ещё не приняты
   const gate={};for(const sp of (D.gate||[]))if(!S.cab||sp.cab===S.cab)for(const g of sp.goods){const [k,n]=keyOf(g.article);gate[k]=(gate[k]||0)+g.qty*n;(planCab[k]=planCab[k]||new Set()).add(sp.cab)}
   // остаток на «Склад WB РФ» (FBO) по тем же ключам

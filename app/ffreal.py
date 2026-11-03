@@ -312,7 +312,7 @@ def compute():
                     if row.get('since') and o['id'] not in pre_ids and o.get('createdAt', '')[:19] < row['since'][:19]: continue
                 if a: used[a] += 1
                 else: unmatched[o.get('article')] = unmatched.get(o.get('article'), 0) + 1
-        rows = [{'article': a, 'title': r['title'], 'base': r['free'], 'orders': used[a], 'now': max(r['free'] - used[a], 0)}
+        rows = [{'article': a, 'title': r['title'], 'base': r['free'], 'orders': used[a], 'now': max(r['free'] - used[a], 0), 'reserve': max(int(r.get('total') or 0) - int(r['free'] or 0), 0)}
                 for a, r in sn['rows'].items()]
         res[ff] = {'time': sn['time'], 'file': sn['file'], 'rows': rows, 'unmatched': unmatched, 'pre': len(sn.get('pre', [])),
                    'components': sn.get('components', []),

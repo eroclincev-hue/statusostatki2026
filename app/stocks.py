@@ -201,7 +201,7 @@ def main(out_path):
                 it = {'cab': 'erokl', 'cabName': 'ИП Ероклинцев', 'nm': None, 'article': r['article'],
                       'brand': BRAND_OVERRIDE.get(r['article'], 'Без бренда'), 'title': r['title'], 'subject': '', 'st': {}}
                 items.append(it); by_art[r['article'].lower()] = it
-            it.setdefault('real', {})[ff] = {'now': r['now'], 'base': r['base'], 'orders': r['orders'], 'fbo': r.get('fbo')}
+            it.setdefault('real', {})[ff] = {'now': r['now'], 'base': r['base'], 'orders': r['orders'], 'fbo': r.get('fbo'), 'reserve': r.get('reserve', 0)}
     # продажи FBS за SALES_DAYS дней (оба кабинета, все склады), без отменённых до сборки
     sales = {}
     try:
