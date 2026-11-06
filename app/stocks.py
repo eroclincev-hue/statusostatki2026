@@ -118,6 +118,9 @@ def main(out_path):
     cache_path = os.path.join(HERE, 'cards_cache.json')
     ccache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
     items, whs, errors = [], [], []
+    mp = os.path.join(HERE, 'wb_manual.json')
+    wb_manual = json.load(open(mp)) if os.path.exists(mp) else {}
+    wb_from = {}  # кабинет -> дата отчёта, если «Склад WB РФ» взят из присланного отчёта
     for cab, cab_name, key in [('erokl', 'ИП Ероклинцев', 'TOKEN_2'), ('avanti', 'Аванти', 'TOKEN_1')]:
         tok = e[key]
         # карточки: Ероклинцев небольшой, тянем каждый раз; Аванти 18 тыс. — кешируем на сутки
@@ -179,6 +182,14 @@ def main(out_path):
         except Exception as ex:
             if '403' not in str(ex):
                 errors.append(f'{cab_name} {WB_WH}: {ex}')
+            # нет доступа к «Аналитике» — берём «Склад WB РФ» из отчёта об остатках, который прислала Лиля (wb_manual.json)
+            man = wb_manual.get(cab)
+            if man:
+                for bc, q in man['rows'].items():
+                    it = sku2item.get(bc)
+                    if it and q and it['article'].lower() not in HIDE_ARTICLES:
+                        it['wb'] = it.get('wb', 0) + q
+                wb_from[cab] = man['date']
         print(cab_name, 'товаров', len(c['cards']), 'складов', len(wl), file=sys.stderr)
     json.dump(ccache, open(cache_path, 'w'), ensure_ascii=False)
     # реальные остатки ФФ по выгрузкам ВМС
@@ -230,7 +241,7 @@ def main(out_path):
         if oz: it['oz'] = oz[0]
     data = {'updated': datetime.datetime.now(MSK).strftime('%d.%m.%Y %H:%M'),
             'warehouses': whs, 'items': [i for i in items if i['st'] or i.get('real') or i['sold'] or i.get('wb')],
-            'real': real_meta, 'wbWh': WB_WH, 'salesDays': SALES_DAYS, 'errors': errors,
+            'real': real_meta, 'wbWh': WB_WH, 'wbManual': wb_from, 'salesDays': SALES_DAYS, 'errors': errors,
             'costs': json.load(open(os.path.join(HERE, 'costs.json'))) if os.path.exists(os.path.join(HERE, 'costs.json')) else {}}
     json.dump(data, open(out_path, 'w'), ensure_ascii=False)
     print('позиций с остатком', len(data['items']), 'ошибок', len(errors), file=sys.stderr)
