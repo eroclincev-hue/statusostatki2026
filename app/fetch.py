@@ -89,6 +89,24 @@ def list_all(token):
         off += 1000
 
 
+_VC = {}
+
+
+def vendor_codes(cab):
+    """{nmID или баркод: артикул продавца} из кеша карточек (cards_cache.json, его ведёт stocks.py)."""
+    if cab not in _VC:
+        m = {}
+        try:
+            for cd in json.load(open(os.path.join(HERE, 'cards_cache.json'))).get(cab, {}).get('cards', []):
+                if not cd.get('vc'): continue
+                m[str(cd['nm'])] = cd['vc']
+                for s in cd.get('skus', []): m[s] = cd['vc']
+        except (OSError, ValueError):
+            pass
+        _VC[cab] = m
+    return _VC[cab]
+
+
 def brands_for(token, nms, bcache):
     for nm in nms:
         if str(nm) in bcache: continue
@@ -142,6 +160,10 @@ def main(out_path):
                 c = {'upd': x.get('updatedDate'), 'det': det, 'goods': goods}
             new_cache[ck] = c
             d, goods = c['det'] or {}, c['goods'] or []
+            # WB может не отдавать vendorCode в составе поставки — подставляем артикул из карточек по nmID/баркоду
+            vc_by = vendor_codes(cab)
+            goods = [dict(gg, vendorCode=gg.get('vendorCode') or vc_by.get(str(gg.get('nmID'))) or vc_by.get(gg.get('barcode') or '') or '')
+                     for gg in goods]
             af = ARTICLE_FILTER.get(cab)
             if af and not any(m in (gg.get('vendorCode') or '').lower() for gg in goods for m in af):
                 continue
