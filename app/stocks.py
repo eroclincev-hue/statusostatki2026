@@ -113,6 +113,38 @@ def fbs_sales(e, days):
     return out
 
 
+STAT = 'https://statistics-api.wildberries.ru/api/v1/supplier/orders'
+
+
+def fbo_sales(e, days, errors):
+    """{артикул в нижнем регистре: заказов FBO (склад WB) за days дней}, без отменённых.
+    Нужен доступ ключа к категории «Статистика»; кабинет без доступа пропускаем и пишем в errors."""
+    out = {}
+    start = (datetime.datetime.now(MSK) - datetime.timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%S')
+    for cab, key in [('erokl', 'TOKEN_2'), ('avanti', 'TOKEN_1')]:
+        tok = e.get(key)
+        if not tok: continue
+        try:
+            rows, frm = [], start
+            while True:
+                r = call(tok, 'GET', f'{STAT}?dateFrom={frm}') or []
+                rows += r
+                if len(r) < 80000: break
+                frm = r[-1]['lastChangeDate']; time.sleep(61)
+        except Exception as ex:
+            errors.append(f'заказы FBO {cab}: ' + ('у ключа нет доступа к «Статистике»' if '403' in str(ex) else str(ex)[:200]))
+            continue
+        seen = set()
+        for o in rows:
+            sid = o.get('srid') or (o.get('gNumber'), o.get('barcode'), o.get('date'))
+            if sid in seen: continue
+            seen.add(sid)
+            if o.get('warehouseType') != 'Склад WB' or o.get('isCancel') or (o.get('date') or '') < start: continue
+            a = (o.get('supplierArticle') or '').lower()
+            out[a] = out.get(a, 0) + 1
+    return out
+
+
 def main(out_path):
     e = env()
     cache_path = os.path.join(HERE, 'cards_cache.json')
@@ -213,14 +245,21 @@ def main(out_path):
                       'brand': BRAND_OVERRIDE.get(r['article'], 'Без бренда'), 'title': r['title'], 'subject': '', 'st': {}}
                 items.append(it); by_art[r['article'].lower()] = it
             it.setdefault('real', {})[ff] = {'now': r['now'], 'base': r['base'], 'orders': r['orders'], 'fbo': r.get('fbo'), 'reserve': r.get('reserve', 0)}
-    # продажи FBS за SALES_DAYS дней (оба кабинета, все склады), без отменённых до сборки
+    # заказы за SALES_DAYS дней: FBS (оба кабинета, все склады, без отменённых до сборки) + FBO (склад WB, без отмен)
     sales = {}
     try:
         sales = fbs_sales(e, SALES_DAYS)
     except Exception as ex:
         errors.append(f'продажи FBS: {ex}')
+    sales_fbo = {}
+    try:
+        sales_fbo = fbo_sales(e, SALES_DAYS, errors)
+    except Exception as ex:
+        errors.append(f'заказы FBO: {ex}')
     for it in items:
-        it['sold'] = sales.get(it['article'].lower(), 0)
+        it['soldFbs'] = sales.get(it['article'].lower(), 0)
+        it['soldFbo'] = sales_fbo.get(it['article'].lower(), 0)
+        it['sold'] = it['soldFbs'] + it['soldFbo']
         if it['cab'] == 'erokl':
             cu = ffreal.canister_units(it['article'])
             if cu:
