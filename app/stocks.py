@@ -241,7 +241,7 @@ def main(out_path):
             if r['article'].lower() in HIDE_ARTICLES: continue
             it = by_art.get(r['article'].lower())
             if not it:
-                it = {'cab': 'erokl', 'cabName': 'ИП Ероклинцев', 'nm': None, 'article': r['article'],
+                it = {'cab': r.get('cab') or 'erokl', 'cabName': 'Аванти' if r.get('cab') == 'avanti' else 'ИП Ероклинцев', 'nm': None, 'article': r['article'],
                       'brand': BRAND_OVERRIDE.get(r['article'], 'Без бренда'), 'title': r['title'], 'subject': '', 'st': {}}
                 items.append(it); by_art[r['article'].lower()] = it
             it.setdefault('real', {})[ff] = {'now': r['now'], 'base': r['base'], 'orders': r['orders'], 'fbo': r.get('fbo'), 'reserve': r.get('reserve', 0)}
